@@ -45,8 +45,8 @@ defmodule Giraff.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Giraff.Supervisor]
-
-    Logger.info("Starting application...")
+    config = Application.fetch_env!(:giraff, Giraff.Application)
+    Logger.info("Starting #{config[:env]} application...")
 
     Supervisor.start_link(children, opts)
   end

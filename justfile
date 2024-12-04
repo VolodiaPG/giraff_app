@@ -33,6 +33,11 @@ check-ts:
 ssh-in vm:
     @ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeychecking=no root@{{ vm }}
 
+dev:
+    #!/usr/bin/env bash
+    export MIX_ENV=dev
+    exec mix run --no-halt
+
 run:
     #!/usr/bin/env bash
     export FLY_IMAGE_REF=thumbs
@@ -113,4 +118,4 @@ toto ip compile="true":
     # mix release --overwrite
     # _build/prod/rel/thumbs/bin/thumbs start
     BUILDPATH=$(nix build --print-out-paths .#prod)
-    $BUILDPATH/bin/thumbs start
+    $BUILDPATH/bin/giraff start

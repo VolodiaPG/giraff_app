@@ -12,10 +12,6 @@ defmodule Giraff.ThumbnailGenerator do
     GenServer.start_link(__MODULE__, opts)
   end
 
-  def stream_chunk!(%ThumbnailGenerator{} = gen, chunk) do
-    each_part(chunk, 60_000, fn part -> :ok = exec_send(gen, part) end)
-  end
-
   def close(%ThumbnailGenerator{} = gen, timeout \\ :infinity) do
     GenServer.call(gen.pid, {:close, timeout}, timeout)
   catch
@@ -23,7 +19,7 @@ defmodule Giraff.ThumbnailGenerator do
   end
 
   def open(opts \\ []) do
-    Keyword.validate!(opts, [:timeout, :caller, :fps])
+    Keyword.validate!(opts, [:timeout, :caller])
     timeout = Keyword.get(opts, :timeout, 120_000)
     caller = Keyword.get(opts, :caller, self())
     parent_ref = make_ref()

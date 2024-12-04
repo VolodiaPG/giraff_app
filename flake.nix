@@ -53,11 +53,11 @@
           # };
         in {
           name = "prod-" + target;
-          value = crossPkgs.callPackage ./thumbs.nix {
+          value = crossPkgs.callPackage ./giraff.nix {
             beamPackages = beamPackagesCross;
             mixNixDeps = mixNixDepsCross;
             inherit lib opts;
-            inherit (crossPkgs) ffmpeg_7-headless esbuild tailwindcss;
+            inherit (crossPkgs) ffmpeg_7-headless;
             inherit (self.packages.${target}) vm_deploy vm_remove;
           };
         };
@@ -77,9 +77,9 @@
         packages =
           rec {
             default = prod;
-            prod = import ./thumbs.nix {
+            prod = import ./giraff.nix {
               inherit lib beamPackages opts;
-              inherit (pkgs) ffmpeg_7-headless esbuild tailwindcss;
+              inherit (pkgs) ffmpeg_7-headless;
               inherit (self'.packages) vm_deploy vm_remove;
             };
           }

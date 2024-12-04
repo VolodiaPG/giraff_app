@@ -1,8 +1,6 @@
 {
   lib,
   beamPackages,
-  esbuild,
-  tailwindcss,
   ffmpeg_7-headless,
   vm_remove,
   vm_deploy,
@@ -22,8 +20,6 @@ in
 
     buildInputs = [
       elixir
-      esbuild
-      tailwindcss
       vm_deploy
       vm_remove
       ffmpeg_7-headless
@@ -33,15 +29,10 @@ in
       find $out -type f -exec patchelf --shrink-rpath '{}' \; -exec strip '{}' \; 2>/dev/null
     '';
 
-    preConfigure = ''
-      substituteInPlace config/config.exs \
-        --replace "config :tailwind," "config :tailwind, path: \"${tailwindcss}/bin/tailwindcss\","\
-        --replace "config :esbuild," "config :esbuild, path: \"${esbuild}/bin/esbuild\", "
-    '';
     ## Deploy assets before creating release
     preInstall = ''
       # https://github.com/phoenixframework/phoenix/issues/2690
-       mix do deps.loadpaths --no-deps-check, assets.deploy
+       mix do deps.loadpaths --no-deps-check
     '';
 
     preFixup = ''

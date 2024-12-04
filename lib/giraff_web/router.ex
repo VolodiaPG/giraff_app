@@ -11,11 +11,17 @@ defmodule GiraffWeb.Router do
   end
 
   get "/toto" do
-    conn |> send_resp(200, Jason.encode!(%{"data" => "toto"}))
+    {:ok, res} =
+      FLAME.call(Giraff.FFMpegRunner, fn ->
+        nil
+        {res, 0} = System.cmd("uname", ["-a"])
+        {:ok, res}
+      end)
+
+    conn |> send_resp(200, Jason.encode!(%{"data" => res}))
   end
 
   match _ do
     send_resp(conn, 404, "Not found")
   end
-
 end
