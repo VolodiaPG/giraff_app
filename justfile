@@ -111,11 +111,11 @@ toto ip compile="true":
     export MIX_ENV=prod
     export FLY_IMAGE_REF=thumbs
     export FLY_IMAGE=ghcr.io/volodiapg/thumbs:latest
-    export FLY_APP_NAME="thumbs"
+    export FLY_APP_NAME="giraff"
     export FLY_HOST=http://$PRIVATE_FLY_IP:12345
     export TAILSCALE_AUTHKEY
     TAILSCALE_AUTHKEY=$(cat .tailscale_authkey | head || exit 129)
     # mix release --overwrite
-    # _build/prod/rel/thumbs/bin/thumbs start
+    # _build/prod/rel/giraff/bin/giraff start
     BUILDPATH=$(nix build --print-out-paths .#prod)
     $BUILDPATH/bin/giraff start

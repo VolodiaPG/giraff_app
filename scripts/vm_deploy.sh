@@ -5,6 +5,7 @@ fi
 
 FLAKE=${FLAKE:-"@flake@"}
 echo "Using flake $FLAKE"
+
 HOST="$1"
 VM_HOSTNAME="$2"
 shift
@@ -23,9 +24,11 @@ chronic ssh $HOST -- bash -e <<-__SSH__
 
   echo "$VARS" > "$DIR/vars"
   source $DIR/vars
+  echo "$FLAKE" > "$DIR/flakepath"
   nix build --print-out-paths "$FLAKE#prod" > "$DIR/buildpath"
   export FLY_PRIVATE_IP
   FLY_PRIVATE_IP="$VM_HOSTNAME"
+  PHX_SERVER=false
 
   nohup \$(cat "$DIR"/buildpath)/bin/function > "$DIR/log.out" 2>&1 &
 __SSH__

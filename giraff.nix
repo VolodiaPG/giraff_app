@@ -1,7 +1,6 @@
 {
   lib,
   beamPackages,
-  ffmpeg_7-headless,
   vm_remove,
   vm_deploy,
   mixNixDeps ? import ./deps.nix {inherit lib beamPackages;},
@@ -22,7 +21,6 @@ in
       elixir
       vm_deploy
       vm_remove
-      ffmpeg_7-headless
     ];
     postInstall = ''
       #  mix phx.digest --no-deps-check
@@ -36,7 +34,6 @@ in
     '';
 
     preFixup = ''
-      makeWrapper $out/bin/server $out/bin/function \
-      --prefix PATH : ${lib.makeBinPath [ffmpeg_7-headless]}
+      makeWrapper $out/bin/server $out/bin/function
     '';
   }

@@ -57,7 +57,6 @@
             beamPackages = beamPackagesCross;
             mixNixDeps = mixNixDepsCross;
             inherit lib opts;
-            inherit (crossPkgs) ffmpeg_7-headless;
             inherit (self.packages.${target}) vm_deploy vm_remove;
           };
         };
@@ -79,11 +78,10 @@
             default = prod;
             prod = import ./giraff.nix {
               inherit lib beamPackages opts;
-              inherit (pkgs) ffmpeg_7-headless;
               inherit (self'.packages) vm_deploy vm_remove;
             };
-          }
-          // builtins.listToAttrs (map crossBuildFor systems);
+          };
+          # // builtins.listToAttrs (map crossBuildFor systems);
 
         apps = let
           mkApp = drv: {

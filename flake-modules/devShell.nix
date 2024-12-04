@@ -32,9 +32,7 @@
             statix
             just
             postgresql
-            ffmpeg_7-headless
             nix-output-monitor
-            tailscale
             jq
             toybox
           ]
