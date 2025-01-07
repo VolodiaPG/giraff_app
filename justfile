@@ -2,13 +2,24 @@ NIX := "${NIX:-nom}"
 NIX_OPTS := "--extra-experimental-features 'nix-command flakes'"
 DB := justfile_directory() / ".db" / "thumbs_dev"
 
-_default: run
-
 deploy dest hostname="toto":
     @vm_deploy {{ dest }} {{ hostname }}
 
 remove dest hostname="toto":
     @vm_remove {{ dest }} {{ hostname }}
+
+ghcr user: (_ghcr user "giraff_app")
+
+_ghcr user image:
+    #!/usr/bin/env bash
+    output=`$(nix build ".#{{ image }}" --print-out-paths --no-link --quiet) | gzip --fast -q | skopeo --insecure-policy copy -q docker-archive:/dev/stdin docker://ghcr.io/{{ user }}/giraff:{{ image }} 2>&1`
+    retVal=$?
+    if [ $retVal -ne 0 ]; then
+      echo -e "[{{ file_name(justfile_directory()) }}] {{ image }} \033[31mFAILED\033[0m"
+      echo -e $output
+      exit $retVal
+    fi
+    echo -e "[{{ file_name(justfile_directory()) }}] {{ image }} \033[32mOK\033[0m"
 
 remove_all dest:
     #!/usr/bin/env bash
@@ -33,18 +44,41 @@ check-ts:
 ssh-in vm:
     @ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeychecking=no root@{{ vm }}
 
-dev:
+dev ip:
     #!/usr/bin/env bash
     export MIX_ENV=dev
+    export SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36
+    export FLY_PRIVATE_IP={{ip}}
+    export FLY_APP_NAME="giraff"
+    export FLY_IMAGE_REF=thumbs
     exec mix run --no-halt
 
-run:
+
+dev_docker ip:
+    docker run \
+        -e SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36 \
+        -e FLY_PRIVATE_IP={{ip}} \
+        -e FLY_APP_NAME="dockergiraff" \
+        -e FLY_IMAGE_REF=thumbs \
+        -e RELEASE_COOKIE=nocookie \
+        -e PHX_SERVER=false \
+        -e FLAME_PARENT="g3QAAAAIdwNwaWRYdxxnaXJhZmYtdGh1bWJzQDEzMS4yNTQuMTAwLjU1AAAGEQAAAABnfTcTdwNyZWZaAAN3HGdpcmFmZi10aHVtYnNAMTMxLjI1NC4xMDAuNTVnfTcTAALUAqB8AAeybtkTdwdiYWNrZW5kdxpFbGl4aXIuRkxBTUUuR2lyYWZmQmFja2VuZHcJbm9kZV9iYXNlbQAAABRmbGFtZS0xNWVhZTkwMjI1YTFjMXcIaG9zdF9lbnZtAAAADkZMWV9QUklWQVRFX0lQdwtiYWNrZW5kX2FwcHcGZ2lyYWZmdwtiYWNrZW5kX3Zzbm0AAAAFMC4xLjF3CWZsYW1lX3Zzbm0AAAAFMC4zLjA=" \
+        --pull=always \
+        -p 5550:8080 \
+        ghcr.io/volodiapg/giraff:giraff_app
+
+
+run ip:
     #!/usr/bin/env bash
-    export FLY_IMAGE_REF=thumbs
     export FLY_IMAGE=ghcr.io/volodiapg/thumbs:latest
-    export FLY_APP_NAME="thumbs"
-    export FLY_HOST=http://localhost-0:12345
-    exec mix phx.server
+    export SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36
+    export FLY_PRIVATE_IP={{ip}}
+    export FLY_APP_NAME="giraff"
+    export FLY_IMAGE_REF=thumbs
+    export RELEASE_COOKIE=nocookie
+    BUILDPATH=$(nix build --print-out-paths .#prod)
+    $BUILDPATH/bin/giraff start
+
 
 deps:
     mix deps.get

@@ -28,13 +28,13 @@
         ++ (with pkgs;
           [
             lexical
-            alejandra
             statix
             just
             postgresql
             nix-output-monitor
             jq
             toybox
+            skopeo
           ]
           ++ lib.optional stdenv.isLinux inotify-tools
           ++ (

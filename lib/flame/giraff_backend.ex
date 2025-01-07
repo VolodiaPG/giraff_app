@@ -24,8 +24,6 @@ defmodule FLAME.GiraffBackend do
 
   * `:cpu_kind` - The size of the runner CPU. Defaults to `"performance"`.
 
-  * `:gpu_kind` - The type of GPU reservation to make.
-
   * `:cpus` - The number of runner CPUs. Defaults to  `System.schedulers_online()`
     for the number of cores of the running parent app.
 
@@ -39,8 +37,6 @@ defmodule FLAME.GiraffBackend do
     Defaults to `System.get_env("FLY_IMAGE_REF")` which is the image of your running app.
 
   * `:token` – The Fly API token. Defaults to `System.get_env("FLY_API_TOKEN")`.
-
-  * `:host` – The host of the Fly API. Defaults to `"https://api.machines.dev"`.
 
   * `:init` – The init object to pass to the machines create endpoint. Defaults to `%{}`.
     Possible values include:
@@ -84,54 +80,77 @@ defmodule FLAME.GiraffBackend do
   @behaviour FLAME.Backend
 
   alias Swoosh.Adapters.Local.Storage.Memory
-  alias FLAME.MicroVMBackend
+  alias FLAME.GiraffBackend
 
   require Logger
 
   @derive {Inspect,
            only: [
-             :host,
+             :market,
              :init,
              :memory_mb,
+             :millicpu,
+             :duration,
+             :livename,
+             :max_replica,
+             :latency_max_ms,
+             :from,
+             :input_max_size_mb,
+             :target_entrypoint,
              :image,
-             :app,
              :local_ip,
              :remote_terminator_pid,
-             :runner_id,
-             :runner_private_ip,
-             :runner_node_base,
-             :runner_node_name,
+             :faas_ip,
+             :faas_id,
+             :faas_port,
+             :function_id,
              :boot_timeout
            ]}
-  defstruct host: nil,
+  defstruct market: nil,
             init: %{},
             local_ip: nil,
             env: %{},
             memory_mb: nil,
-            gpu_kind: nil,
+            millicpu: nil,
+            duration: nil,
+            livename: nil,
+            max_replica: 1,
+            latency_max_ms: nil,
+            from: nil,
+            target_entrypoint: nil,
+            input_max_size_mb: nil,
             image: nil,
             services: [],
-            app: nil,
             boot_timeout: nil,
             runner_id: nil,
             remote_terminator_pid: nil,
             parent_ref: nil,
-            runner_private_ip: nil,
-            runner_node_base: nil,
-            runner_node_name: nil,
-            log: nil
+            faas_ip: nil,
+            faas_id: nil,
+            faas_port: nil,
+            function_id: nil,
+            log: nil,
+            runner_node_name: nil
 
   @valid_opts [
     :app,
     :image,
-    :host,
+    :market,
     :init,
     :memory_mb,
     :boot_timeout,
     :env,
     :terminator_sup,
     :log,
-    :services
+    :services,
+    :millicpu,
+    :duration,
+    :livename,
+    :max_replica,
+    :latency_max_ms,
+    :from,
+    :input_max_size_mb,
+    :target_entrypoint
   ]
 
   @impl true
@@ -139,12 +158,15 @@ defmodule FLAME.GiraffBackend do
     conf = Application.get_env(:flame, __MODULE__) || []
     [_node_base, ip] = node() |> to_string() |> String.split("@")
 
-    default = %MicroVMBackend{
-      app: System.get_env("FLY_APP_NAME"),
-      image: System.get_env("FLY_IMAGE"),
-      host: System.get_env("FLY_HOST"),
+    Logger.debug(node())
+
+    default = %GiraffBackend{
       memory_mb: 256,
+      millicpu: 1000,
       boot_timeout: 120_000,
+      max_replica: 1,
+      input_max_size_mb: 1024,
+      duration: 120_000,
       services: [],
       init: [],
       log: Keyword.get(conf, :log, false)
@@ -155,26 +177,29 @@ defmodule FLAME.GiraffBackend do
       |> Keyword.merge(opts)
       |> Keyword.validate!(@valid_opts)
 
-    %MicroVMBackend{} = state = Map.merge(default, Map.new(provided_opts))
+    %GiraffBackend{} = state = Map.merge(default, Map.new(provided_opts))
 
-    for key <- [:image, :host, :app] do
+    for key <- [:image, :market, :latency_max_ms, :target_entrypoint] do
       unless Map.get(state, key) do
         raise ArgumentError, "missing :#{key} config for #{inspect(__MODULE__)}"
       end
     end
 
     suffix = "#{rand_id(14)}"
-    state = %MicroVMBackend{state | runner_node_base: "flame-#{suffix}"}
+    state = %GiraffBackend{state | livename: "flame-#{suffix}"}
     parent_ref = make_ref()
 
     encoded_parent =
       parent_ref
-      |> FLAME.Parent.new(self(), __MODULE__, state.runner_node_base, "FLY_PRIVATE_IP")
+      |> FLAME.Parent.new(self(), __MODULE__, state.livename, "FLY_PRIVATE_IP")
       |> FLAME.Parent.encode()
+
+    Logger.debug("Flame parent: #{encoded_parent}")
 
     new_env =
       %{
         "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
+        "FLY_PRIVATE_IP" => "131.254.100.55",
         "FLY_APP_NAME" => "flame",
         "FLY_IMAGE_REF" => suffix,
         "PHX_SERVER" => "false",
@@ -200,14 +225,14 @@ defmodule FLAME.GiraffBackend do
       end)
 
     new_state =
-      %MicroVMBackend{state | env: new_env, parent_ref: parent_ref, local_ip: ip}
+      %GiraffBackend{state | env: new_env, parent_ref: parent_ref, local_ip: ip}
 
     {:ok, new_state}
   end
 
   @impl true
   # TODO explore spawn_request
-  def remote_spawn_monitor(%MicroVMBackend{} = state, term) do
+  def remote_spawn_monitor(%GiraffBackend{} = state, term) do
     Logger.debug("spawning a monitor")
 
     case term do
@@ -246,27 +271,68 @@ defmodule FLAME.GiraffBackend do
   end
 
   @impl true
-  def remote_boot(%MicroVMBackend{parent_ref: parent_ref} = state) do
+  def remote_boot(%GiraffBackend{parent_ref: parent_ref} = state) do
     {resp, req_connect_time} =
       with_elapsed_ms(fn ->
-        env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> "#{x}='#{y}'" end)
+        env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> ["#{x}","#{y}"] end)
 
-        {resp, status} =
-          System.cmd(
-            "vm_deploy",
-            [state.host, state.runner_node_base] ++ env
+        res =
+          Req.put!(
+            "http://#{state.market}/api/function",
+            connect_options: [timeout: state.boot_timeout],
+            json: %{
+              sla: %{
+                memory: "#{state.memory_mb} MB",
+                cpu: "#{state.millicpu} millicpu",
+                latencyMax: "#{state.latency_max_ms} ms",
+                replicas: state.max_replica,
+                duration: "#{state.duration} ms",
+                functionImage: state.image,
+                functionLiveName: state.livename,
+                envVars: env,
+                dataFlow: [
+                  %{
+                    from: %{dataSource: state.from},
+                    to: "thisFunction"
+                  }
+                ],
+                inputMaxSize: "#{state.input_max_size_mb} MB"
+              },
+              targetNode: state.target_entrypoint
+            }
           )
 
-        if status != 0 do
-          Logger.error("failed to start the microvm to #{state.host} with: #{resp}")
+        if res.status != 200 do
+          Logger.error(
+            "failed to reserve the giraff function to #{state.market} with: #{res.body}"
+          )
+
           exit(:error)
         end
 
-        container_id = state.runner_node_base
-        Logger.debug("Started (async) #{state.runner_node_base}")
-        private_runner_ip = container_id
+        faas_ip = Kernel.get_in(res.body, ["chosen", "ip"])
+        faas_id = Kernel.get_in(res.body, ["chosen", "bid", "nodeId"])
+        faas_port = Kernel.get_in(res.body, ["chosen", "port"])
+        function_id = Kernel.get_in(res.body, ["sla", "id"])
 
-        {:success, container_id, private_runner_ip}
+        res = Req.post!(
+          "http://#{state.market}/api/function/#{function_id}",
+          connect_options: [timeout: state.boot_timeout],
+          receive_timeout: state.boot_timeout,
+          body: nil
+        )
+
+        Logger.debug(res)
+
+        if res.status != 200 do
+          Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
+
+          exit(:error)
+        end
+
+        Logger.debug("Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})")
+
+        {:ok, faas_ip, faas_port, faas_id, function_id}
       end)
 
     if state.log,
@@ -279,12 +345,14 @@ defmodule FLAME.GiraffBackend do
     remaining_connect_window = state.boot_timeout - req_connect_time
 
     case resp do
-      {:success, container_id, private_runner_ip} ->
+      {:ok, faas_ip, faas_port, faas_id, function_id} ->
         new_state =
-          %MicroVMBackend{
+          %GiraffBackend{
             state
-            | runner_id: container_id,
-              runner_private_ip: private_runner_ip
+            | faas_id: faas_id,
+              faas_ip: faas_ip,
+              faas_port: faas_port,
+              function_id: function_id
           }
 
         remote_terminator_pid =
@@ -297,30 +365,11 @@ defmodule FLAME.GiraffBackend do
               exit(:timeout)
           end
 
-        new_state = %MicroVMBackend{
+        new_state = %GiraffBackend{
           new_state
           | remote_terminator_pid: remote_terminator_pid,
             runner_node_name: node(remote_terminator_pid)
         }
-
-        # {resp, req_connect_time} =
-        #  with_elapsed_ms(fn -> wait_till_pong(new_state.runner_node_name, :pang) end)
-
-        # remaining_connect_window = remaining_connect_window - req_connect_time
-
-        # IO.inspect(resp)
-
-        # case resp do
-        #  :ok ->
-        #    Logger.debug(
-        #      "All good for #{new_state.runner_node_base}, now going onto the next steps with node name #{new_state.runner_node_name}"
-        #    )
-
-        #    {:ok, remote_terminator_pid, new_state}
-
-        #  other ->
-        #    {:error, other}
-        # end
 
         {:ok, remote_terminator_pid, new_state}
 

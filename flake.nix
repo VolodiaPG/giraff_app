@@ -11,6 +11,7 @@
       url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    giraff.url = "github:volodiapg/giraff/dynamicity";
   };
 
   outputs = inputs @ {
@@ -48,9 +49,6 @@
             inherit lib;
             beamPackages = beamPackagesCross;
           };
-          # mixNixDepsCross = mixNixDeps.override {
-          #   buildRebar3 = beamPackages.buildRebar3;
-          # };
         in {
           name = "prod-" + target;
           value = crossPkgs.callPackage ./giraff.nix {
@@ -67,21 +65,36 @@
             hooks = {
               alejandra.enable = true;
               statix.enable = true;
-
-              #credo.enable = true;
             };
           };
         };
 
-        packages =
-          rec {
-            default = prod;
-            prod = import ./giraff.nix {
-              inherit lib beamPackages opts;
-              inherit (self'.packages) vm_deploy vm_remove;
+        packages = rec {
+          default = prod;
+          prod = import ./giraff.nix {
+            inherit lib beamPackages opts;
+            inherit (self'.packages) vm_deploy vm_remove;
+          };
+          giraff_app = pkgs.dockerTools.streamLayeredImage {
+            name = "giraff";
+            tag = "giraff_app";
+            contents = [prod pkgs.bash]; # pkgs.coreutils pkgs.bashInteractive ];
+
+            config = {
+              Env = [
+                "fprocess=${prod}/bin/function"
+                "mode=http"
+                "http_upstream_url=http://127.0.0.1:5000"
+                "ready_path=http://127.0.0.1:5000/health"
+              ];
+              ExposedPorts = {
+                "8080/tcp" = {};
+              };
+              Cmd = ["${inputs.giraff.packages.${system}.fwatchdog}/bin/of-watchdog"];
+              WorkingDir = "/";
             };
           };
-          # // builtins.listToAttrs (map crossBuildFor systems);
+        };
 
         apps = let
           mkApp = drv: {

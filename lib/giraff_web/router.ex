@@ -13,7 +13,6 @@ defmodule GiraffWeb.Router do
   get "/toto" do
     {:ok, res} =
       FLAME.call(Giraff.FFMpegRunner, fn ->
-        nil
         {res, 0} = System.cmd("uname", ["-a"])
         {:ok, res}
       end)
