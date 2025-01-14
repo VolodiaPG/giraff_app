@@ -17,19 +17,45 @@ import Config
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
 if System.get_env("PHX_SERVER") do
-  config :giraff, ThumbsWeb.Endpoint, server: true
+  config :giraff, Giraff.Endpoint, server: true
 end
 
 config :giraff, Giraff.Application, env: config_env()
 
 if config_env() == :prod do
-  config :flame, :backend, FLAME.MicroVMBackend
+  config :giraff,
+    ffmpeg_backend: {
+      FLAME.GiraffBackend,
+      market: System.get_env("MARKET_URL"),
+      boot_timeout: 120_000,
+      image: "ghcr.io/volodiapg/giraff:giraff_app",
+      millicpu: 100,
+      memory_mb: 256,
+      duration: 120_000,
+      latency_max_ms: 1000,
+      target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
+      from: System.get_env("GIRAFF_NODE_ID")
+    }
 
-  config :flame, FLAME.MicroVMBackend,
-    boot_timeout: 120_000,
-    host: "dell"
+  config :giraff,
+    toto_backend: {
+      FLAME.GiraffBackend,
+      market: System.get_env("MARKET_URL"),
+      boot_timeout: 120_000,
+      image: "ghcr.io/volodiapg/giraff:giraff_app",
+      millicpu: 500,
+      memory_mb: 512,
+      duration: 120_000,
+      latency_max_ms: 200,
+      target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
+      from: System.get_env("GIRAFF_NODE_ID")
+    }
 
   config :flame, :terminator, log: :debug
 
   config :giraff, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+else
+  config :giraff, ffmpeg_backend: FLAME.LocalBackend
+
+  config :giraff, toto_backend: FLAME.LocalBackend
 end

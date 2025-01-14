@@ -82,7 +82,8 @@
 
             config = {
               Env = [
-                "fprocess=${prod}/bin/function"
+                # "fprocess=${prod}/bin/function"
+                "LC_ALL=C.UTF-8"
                 "mode=http"
                 "http_upstream_url=http://127.0.0.1:5000"
                 "ready_path=http://127.0.0.1:5000/health"

@@ -8,6 +8,7 @@ defmodule Giraff.Application do
 
   @impl true
   def start(_type, _args) do
+
     children =
       children(
         parent: {DNSCluster, query: Application.get_env(:thumbs, :dns_cluster_query) || :ignore},
@@ -25,33 +26,22 @@ defmodule Giraff.Application do
           timeout: :timer.minutes(2),
           log: :debug,
           single_use: false,
-          backend: {
-            FLAME.GiraffBackend,
-            market: "131.254.100.55:30008",
-            # market: "localhost:30008",
-            boot_timeout: 120_000,
-            image: "ghcr.io/volodiapg/giraff:giraff_app",
-            millicpu: 100,
-            memory_mb: 256,
-            duration: 120_000,
-            target_entrypoint: "d2f7de01-d7e5-4afc-bc76-fb5c0e79ec7a",
-            latency_max_ms: 1000,
-            from: "d2f7de01-d7e5-4afc-bc76-fb5c0e79ec7a",
-          }
-          # code_sync: [
-          #   start_apps: true,
-          #   verbose: true,
-          #   sync_beams: [
-          #     Path.join([
-          #       "_build",
-          #       "prod",
-          #       "lib",
-          #       "thumbs",
-          #       "ebin"
-          #     ])
-          #   ]
-          # ]
+          backend:  Application.get_env(:giraff, :ffmpeg_backend),
         },
+        parent: {
+                  FLAME.Pool,
+                  name: Giraff.TotoRunner,
+                  min: 0,
+                  max: 10,
+                  max_concurrency: 5,
+                  boot_timeout: :timer.minutes(2),
+                  shutdown_timeout: :timer.minutes(2),
+                  idle_shutdown_after: :timer.minutes(2),
+                  timeout: :timer.minutes(2),
+                  log: :debug,
+                  single_use: false,
+                  backend:  Application.get_env(:giraff, :toto_backend),
+                },
         always: {Bandit, plug: GiraffWeb.Endpoint, port: 5000},
       )
 

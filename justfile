@@ -48,36 +48,60 @@ dev ip:
     #!/usr/bin/env bash
     export MIX_ENV=dev
     export SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36
-    export FLY_PRIVATE_IP={{ip}}
-    export FLY_APP_NAME="giraff"
-    export FLY_IMAGE_REF=thumbs
+    export PRIVATE_IP={{ip}}
+    export NAME="giraff"
     exec mix run --no-halt
 
 
-dev_docker ip:
+docker_function ip FLAME_PARENT="":
     docker run \
         -e SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36 \
-        -e FLY_PRIVATE_IP={{ip}} \
-        -e FLY_APP_NAME="dockergiraff" \
-        -e FLY_IMAGE_REF=thumbs \
+        -e PRIVATE_IP={{ip}} \
+        -e NAME="dockergiraff" \
         -e RELEASE_COOKIE=nocookie \
         -e PHX_SERVER=false \
-        -e FLAME_PARENT="g3QAAAAIdwNwaWRYdxxnaXJhZmYtdGh1bWJzQDEzMS4yNTQuMTAwLjU1AAAGEQAAAABnfTcTdwNyZWZaAAN3HGdpcmFmZi10aHVtYnNAMTMxLjI1NC4xMDAuNTVnfTcTAALUAqB8AAeybtkTdwdiYWNrZW5kdxpFbGl4aXIuRkxBTUUuR2lyYWZmQmFja2VuZHcJbm9kZV9iYXNlbQAAABRmbGFtZS0xNWVhZTkwMjI1YTFjMXcIaG9zdF9lbnZtAAAADkZMWV9QUklWQVRFX0lQdwtiYWNrZW5kX2FwcHcGZ2lyYWZmdwtiYWNrZW5kX3Zzbm0AAAAFMC4xLjF3CWZsYW1lX3Zzbm0AAAAFMC4zLjA=" \
+        -e INTERNAL_OPENED_PORT=30114 \
+        -e OPENED_PORT=30115 \
+        -e FLAME_PARENT="{{FLAME_PARENT}}" \
+        -e fprocess="function" \
         --pull=always \
-        -p 5550:8080 \
+        -p 30115:30114 \
+        ghcr.io/volodiapg/giraff:giraff_app
+
+docker_server ip:
+    docker run \
+        -e SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36 \
+        -e PRIVATE_IP={{ip}} \
+        -e NAME="giraff" \
+        -e RELEASE_COOKIE=nocookie \
+        -e INTERNAL_OPENED_PORT=32115 \
+        -e OPENED_PORT=32114 \
+        -e fprocess="server" \
+        --pull=always \
+        -p 32115:32114 \
+        -p 5000:5000 \
         ghcr.io/volodiapg/giraff:giraff_app
 
 
-run ip:
+run ip is_nix="mix":
     #!/usr/bin/env bash
     export FLY_IMAGE=ghcr.io/volodiapg/thumbs:latest
     export SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36
-    export FLY_PRIVATE_IP={{ip}}
-    export FLY_APP_NAME="giraff"
-    export FLY_IMAGE_REF=thumbs
+    export PRIVATE_IP={{ip}}
+    export NAME="giraff"
     export RELEASE_COOKIE=nocookie
-    BUILDPATH=$(nix build --print-out-paths .#prod)
-    $BUILDPATH/bin/giraff start
+    export INTERNAL_OPENED_PORT=5656
+    export OPENED_PORT=5656
+    export MIX_ENV=prod
+    export RELEASE_MODE=name
+    export MARKET_URL="{{ip}}"
+    if [ "{{is_nix}}" = "nix" ]; then
+        BUILDPATH=$(nix build --print-out-paths .#prod)
+        $BUILDPATH/bin/server
+    else
+        mix release --overwrite
+        _build/prod/rel/giraff/bin/giraff start
+    fi
 
 
 deps:

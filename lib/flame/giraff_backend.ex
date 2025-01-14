@@ -158,7 +158,7 @@ defmodule FLAME.GiraffBackend do
     conf = Application.get_env(:flame, __MODULE__) || []
     [_node_base, ip] = node() |> to_string() |> String.split("@")
 
-    Logger.debug(node())
+    # Logger.debug("node is #{node()}")
 
     default = %GiraffBackend{
       memory_mb: 256,
@@ -191,7 +191,7 @@ defmodule FLAME.GiraffBackend do
 
     encoded_parent =
       parent_ref
-      |> FLAME.Parent.new(self(), __MODULE__, state.livename, "FLY_PRIVATE_IP")
+      |> FLAME.Parent.new(self(), __MODULE__, state.livename, "PRIVATE_IP")
       |> FLAME.Parent.encode()
 
     Logger.debug("Flame parent: #{encoded_parent}")
@@ -199,7 +199,7 @@ defmodule FLAME.GiraffBackend do
     new_env =
       %{
         "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
-        "FLY_PRIVATE_IP" => "131.254.100.55",
+        # "PRIVATE_IP" => "131.254.100.55",
         "FLY_APP_NAME" => "flame",
         "FLY_IMAGE_REF" => suffix,
         "PHX_SERVER" => "false",
@@ -233,7 +233,7 @@ defmodule FLAME.GiraffBackend do
   @impl true
   # TODO explore spawn_request
   def remote_spawn_monitor(%GiraffBackend{} = state, term) do
-    Logger.debug("spawning a monitor")
+    Logger.debug("spawning a monitor on #{state.runner_node_name}")
 
     case term do
       func when is_function(func, 0) ->
@@ -290,6 +290,7 @@ defmodule FLAME.GiraffBackend do
                 functionImage: state.image,
                 functionLiveName: state.livename,
                 envVars: env,
+                envProcess: "function",
                 dataFlow: [
                   %{
                     from: %{dataSource: state.from},
@@ -321,8 +322,6 @@ defmodule FLAME.GiraffBackend do
           receive_timeout: state.boot_timeout,
           body: nil
         )
-
-        Logger.debug(res)
 
         if res.status != 200 do
           Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
@@ -361,7 +360,7 @@ defmodule FLAME.GiraffBackend do
               remote_terminator_pid
           after
             remaining_connect_window ->
-              Logger.error("failed to connect to fly machine within #{state.boot_timeout} ms")
+              Logger.error("failed to connect to Giraff machine within #{state.boot_timeout} ms")
               exit(:timeout)
           end
 
@@ -370,6 +369,8 @@ defmodule FLAME.GiraffBackend do
           | remote_terminator_pid: remote_terminator_pid,
             runner_node_name: node(remote_terminator_pid)
         }
+
+        Logger.debug("successed to connect to Giraff machine #{new_state.runner_node_name} within #{state.boot_timeout} ms")
 
         {:ok, remote_terminator_pid, new_state}
 

@@ -17,7 +17,12 @@ defmodule GiraffWeb.Router do
         {:ok, res}
       end)
 
-    conn |> send_resp(200, Jason.encode!(%{"data" => res}))
+      {:ok, lsres} = FLAME.call(Giraff.FFMpegRunner, fn ->
+              {res, 0} = System.cmd("ls", ["-lia"])
+              {:ok, res}
+            end)
+
+    conn |> send_resp(200, Jason.encode!(%{"uname" => res, "ls" => lsres}))
   end
 
   match _ do
