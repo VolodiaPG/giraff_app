@@ -16,9 +16,8 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
-if System.get_env("PHX_SERVER") do
-  config :giraff, Giraff.Endpoint, server: true
-end
+
+config :giraff, secret_key_base: System.get_env("SECRET_KEY_BASE")
 
 config :giraff, Giraff.Application, env: config_env()
 

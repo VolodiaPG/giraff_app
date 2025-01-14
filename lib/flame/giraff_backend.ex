@@ -1,85 +1,10 @@
 defmodule FLAME.GiraffBackend do
   @moduledoc """
-  A `FLAME.Backend` using [Fly.io](https://fly.io) machines.
-
-  The only required configuration is telling FLAME to use the
-  `FLAME.FlyBackend` by default and the `:token` which is your Fly.io API
-  token. These can be set via application configuration in your `config/runtime.exs`
-  withing a `:prod` block:
-
-      if config_env() == :prod do
-        config :flame, :backend, FLAME.FlyBackend
-        config :flame, FLAME.FlyBackend, token: System.fetch_env!("FLY_API_TOKEN")
-        ...
-      end
-
-  To set your `FLY_API_TOKEN` secret, you can run the following commands locally:
-
-  ```bash
-  $ fly secrets set FLY_API_TOKEN="$(fly auth token)"
-  ```
-
-  The following backend options are supported, and mirror the
-  [Fly.io machines create API](https://fly.io/docs/machines/api/machines-resource/#machine-config-object-properties):
-
-  * `:cpu_kind` - The size of the runner CPU. Defaults to `"performance"`.
-
-  * `:cpus` - The number of runner CPUs. Defaults to  `System.schedulers_online()`
-    for the number of cores of the running parent app.
-
-  * `:memory_mb` - The memory of the runner. Must be a 1024 multiple. Defaults to `4096`.
-
-  * `:boot_timeout` - The boot timeout. Defaults to `30_000`.
-
-  * `:app` – The name of the otp app. Defaults to `System.get_env("FLY_APP_NAME")`,
-
-  * `:image` – The URL of the docker image to pass to the machines create endpoint.
-    Defaults to `System.get_env("FLY_IMAGE_REF")` which is the image of your running app.
-
-  * `:token` – The Fly API token. Defaults to `System.get_env("FLY_API_TOKEN")`.
-
-  * `:init` – The init object to pass to the machines create endpoint. Defaults to `%{}`.
-    Possible values include:
-
-      * `:cmd` – list of strings for the command
-      * `:entrypoint` – list strings for the entrypoint command
-      * `:exec` – list of strings for the exec command
-      * `:kernel_args` - list of strings
-      * `:swap_size_mb` – integer value in megabytes for th swap size
-      * `:tty` – boolean
-
-  * `:services` - The optional services to run on the machine. Defaults to `[]`.
-
-  * `:metadata` - The optional map of metadata to set for the machine. Defaults to `%{}`.
-
-  ## Environment Variables
-
-  The FLAME Fly machines do *do not* inherit the environment variables of the parent.
-  You must explicit provide the environment that you would like to forward to the
-  machine. For example, if your FLAME's are starting your Ecto repos, you can copy
-  the env from the parent:
-
-  ```elixir
-  config :flame, FLAME.FlyBackend,
-    token: System.fetch_env!("FLY_API_TOKEN"),
-    env: %{
-      "DATABASE_URL" => System.fetch_env!("DATABASE_URL")
-      "POOL_SIZE" => "1"
-    }
-  ```
-
-  Or pass the env to each pool:
-
-  ```elixir
-  {FLAME.Pool,
-    name: MyRunner,
-    backend: {FLAME.FlyBackend, env: %{"DATABASE_URL" => System.fetch_env!("DATABASE_URL")}}
-  }
+  A `FLAME.Backend` using [Giraff](https://github.com/volodiapg/giraff) machines.
   ```
   """
   @behaviour FLAME.Backend
 
-  alias Swoosh.Adapters.Local.Storage.Memory
   alias FLAME.GiraffBackend
 
   require Logger
@@ -179,7 +104,7 @@ defmodule FLAME.GiraffBackend do
 
     %GiraffBackend{} = state = Map.merge(default, Map.new(provided_opts))
 
-    for key <- [:image, :market, :latency_max_ms, :target_entrypoint] do
+    for key <- [:image, :market, :latency_max_ms, :target_entrypoint, :from] do
       unless Map.get(state, key) do
         raise ArgumentError, "missing :#{key} config for #{inspect(__MODULE__)}"
       end
@@ -198,15 +123,13 @@ defmodule FLAME.GiraffBackend do
 
     new_env =
       %{
-        "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
-        # "PRIVATE_IP" => "131.254.100.55",
+        "SECRET_KEY_BASE" => Application.get_env(:giraff, :secret_key_base),
         "FLY_APP_NAME" => "flame",
         "FLY_IMAGE_REF" => suffix,
         "PHX_SERVER" => "false",
         "FLAME_PARENT" => encoded_parent,
-        "RELEASE_COOKIE" => Node.get_cookie(),
-        "DATABASE_URL" => System.get_env("REMOTE_DATABASE_URL"),
-        "ECTO_IPV6" => System.get_env("ECTO_IPV6", "false")
+        "MARKET_URL" => state.market,
+        "RELEASE_COOKIE" => Node.get_cookie()
       }
       |> Map.merge(state.env)
       |> then(fn env ->
@@ -274,7 +197,7 @@ defmodule FLAME.GiraffBackend do
   def remote_boot(%GiraffBackend{parent_ref: parent_ref} = state) do
     {resp, req_connect_time} =
       with_elapsed_ms(fn ->
-        env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> ["#{x}","#{y}"] end)
+        env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> ["#{x}", "#{y}"] end)
 
         res =
           Req.put!(
@@ -316,12 +239,13 @@ defmodule FLAME.GiraffBackend do
         faas_port = Kernel.get_in(res.body, ["chosen", "port"])
         function_id = Kernel.get_in(res.body, ["sla", "id"])
 
-        res = Req.post!(
-          "http://#{state.market}/api/function/#{function_id}",
-          connect_options: [timeout: state.boot_timeout],
-          receive_timeout: state.boot_timeout,
-          body: nil
-        )
+        res =
+          Req.post!(
+            "http://#{state.market}/api/function/#{function_id}",
+            connect_options: [timeout: state.boot_timeout],
+            receive_timeout: state.boot_timeout,
+            body: nil
+          )
 
         if res.status != 200 do
           Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
@@ -370,7 +294,9 @@ defmodule FLAME.GiraffBackend do
             runner_node_name: node(remote_terminator_pid)
         }
 
-        Logger.debug("successed to connect to Giraff machine #{new_state.runner_node_name} within #{state.boot_timeout} ms")
+        Logger.debug(
+          "successed to connect to Giraff machine #{new_state.runner_node_name} within #{state.boot_timeout} ms"
+        )
 
         {:ok, remote_terminator_pid, new_state}
 

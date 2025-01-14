@@ -6,24 +6,29 @@ defmodule GiraffWeb.Endpoint do
   plug(:match)
   plug(:dispatch)
 
-  # Use forward or scope for path grouping
-  forward("/api", to: GiraffWeb.Router)
-
   get "/health" do
     send_resp(conn, 200, "")
   end
 
   post "/" do
-    {:ok, res} =
+    {:ok, res, lsres} =
       FLAME.call(Giraff.FFMpegRunner, fn ->
         {res, 0} = System.cmd("uname", ["-a"])
-        {:ok, res}
-      end)
 
-    {:ok, lsres} =
-      FLAME.call(Giraff.TotoRunner, fn ->
-        {res, 0} = System.cmd("ls", [])
-        {:ok, res}
+        :ok =
+          FLAME.cast(Giraff.TotoRunner, fn ->
+            {resping, 0} = System.cmd("ping", ["1.1.1.1", "-c", "4"])
+            Logger.debug("ping: #{resping}")
+            :ok
+          end)
+
+        {:ok, lsres} =
+          FLAME.call(Giraff.TotoRunner, fn ->
+            {res, 0} = System.cmd("ls", [])
+            {:ok, res}
+          end)
+
+        {:ok, res, lsres}
       end)
 
     tosend = Jason.encode!(%{"uname" => res, "ls" => lsres})

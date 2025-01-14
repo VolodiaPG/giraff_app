@@ -8,10 +8,8 @@ defmodule Giraff.Application do
 
   @impl true
   def start(_type, _args) do
-
     children =
       children(
-        parent: {DNSCluster, query: Application.get_env(:thumbs, :dns_cluster_query) || :ignore},
         always: {Task.Supervisor, name: Giraff.TaskSup},
         always: {DynamicSupervisor, name: Giraff.DynamicSup},
         parent: {
@@ -26,23 +24,23 @@ defmodule Giraff.Application do
           timeout: :timer.minutes(2),
           log: :debug,
           single_use: false,
-          backend:  Application.get_env(:giraff, :ffmpeg_backend),
+          backend: Application.get_env(:giraff, :ffmpeg_backend)
         },
-        parent: {
-                  FLAME.Pool,
-                  name: Giraff.TotoRunner,
-                  min: 0,
-                  max: 10,
-                  max_concurrency: 5,
-                  boot_timeout: :timer.minutes(2),
-                  shutdown_timeout: :timer.minutes(2),
-                  idle_shutdown_after: :timer.minutes(2),
-                  timeout: :timer.minutes(2),
-                  log: :debug,
-                  single_use: false,
-                  backend:  Application.get_env(:giraff, :toto_backend),
-                },
-        always: {Bandit, plug: GiraffWeb.Endpoint, port: 5000},
+        flame: {
+          FLAME.Pool,
+          name: Giraff.TotoRunner,
+          min: 0,
+          max: 10,
+          max_concurrency: 5,
+          boot_timeout: :timer.minutes(2),
+          shutdown_timeout: :timer.minutes(2),
+          idle_shutdown_after: :timer.minutes(2),
+          timeout: :timer.minutes(2),
+          log: :debug,
+          single_use: false,
+          backend: Application.get_env(:giraff, :toto_backend)
+        },
+        always: {Bandit, plug: GiraffWeb.Endpoint, port: 5000}
       )
 
     # See https://hexdocs.pm/elixir/Supervisor.html

@@ -9,7 +9,7 @@ defmodule Thumbs.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps(),
+      deps: deps()
       # releases: [
       #     giraff: [
       #         vm_args: "rel/vm.args"
@@ -24,7 +24,7 @@ defmodule Thumbs.MixProject do
   def application do
     [
       mod: {Giraff.Application, []},
-      extra_applications: [:logger],
+      extra_applications: [:logger]
       # registered: [:custom_epmd, :custom_dst]
     ]
   end
@@ -39,7 +39,6 @@ defmodule Thumbs.MixProject do
   defp deps do
     [
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.6"},
       {:flame, ">= 0.2.0"},
       {:req, "~> 0.5.6"},
