@@ -32,11 +32,11 @@ docker_function ip FLAME_PARENT="":
         -e OPENED_PORT=30115 \
         -e FLAME_PARENT="{{FLAME_PARENT}}" \
         -e fprocess="function" \
-        --pull=always \
         -p 30115:30114 \
         ghcr.io/volodiapg/giraff:giraff_app
 
 docker_server ip:
+    # nix run .#giraff_app.copyToDockerDaemon
     docker run \
         -e SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36 \
         -e PRIVATE_IP={{ip}} \

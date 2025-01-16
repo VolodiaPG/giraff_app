@@ -1,39 +1,27 @@
 {
   lib,
   beamPackages,
-  vm_remove,
-  vm_deploy,
+  elixir,
+  erlang,
   mixNixDeps ? import ./deps.nix {inherit lib beamPackages;},
   opts,
-}: let
-  inherit (beamPackages) elixir;
-in
-  beamPackages.mixRelease {
-    inherit mixNixDeps;
-    pname = opts.remote_container_name;
-    src = ./.;
-    version = opts.remote_container_version;
-    mixEnv = "prod";
+}:
+beamPackages.mixRelease {
+  inherit mixNixDeps elixir erlang;
+  inherit (opts.app) pname version;
+  src = ./.;
+  stripDebug = true;
 
-    # ERL_COMPILER_OPTIONS="deterministic";
+  # postInstall = ''
+  #   # Strip debug symbols and shrink rpath
+  #   find $out -type f -exec patchelf --shrink-rpath '{}' \; -exec strip '{}' \; 2>/dev/null
+  #   # Remove unnecessary files
+  #   rm -rf $out/lib/*/consolidated
+  #   rm -rf $out/lib/*/ebin/*.beam
+  #   rm -rf $out/lib/*/priv/static
+  # '';
 
-    buildInputs = [
-      elixir
-      vm_deploy
-      vm_remove
-    ];
-    postInstall = ''
-      #  mix phx.digest --no-deps-check
-      find $out -type f -exec patchelf --shrink-rpath '{}' \; -exec strip '{}' \; 2>/dev/null
-    '';
-
-    ## Deploy assets before creating release
-    preInstall = ''
-      # https://github.com/phoenixframework/phoenix/issues/2690
-       mix do deps.loadpaths --no-deps-check
-    '';
-
-    preFixup = ''
-      makeWrapper $out/bin/server $out/bin/function
-    '';
-  }
+  preFixup = ''
+    makeWrapper $out/bin/server $out/bin/function
+  '';
+}

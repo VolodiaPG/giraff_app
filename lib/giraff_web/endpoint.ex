@@ -10,6 +10,28 @@ defmodule GiraffWeb.Endpoint do
     send_resp(conn, 200, "")
   end
 
+  post "/transcribe" do
+    case conn.body_params do
+      %{"audio" => %Plug.Upload{path: temp_path}} ->
+        case Giraff.AI.SpeechRecognition.transcribe_audio(temp_path) do
+          {:ok, transcription} ->
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(200, Jason.encode!(%{transcription: transcription}))
+
+          {:error, reason} ->
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(422, Jason.encode!(%{error: "Transcription failed: #{reason}"}))
+        end
+
+      _ ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
+    end
+  end
+
   post "/" do
     {:ok, res, lsres} =
       FLAME.call(Giraff.FFMpegRunner, fn ->

@@ -1,17 +1,20 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     pre-commit-hooks = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    impermanence.url = "github:nix-community/impermanence";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    microvm = {
-      url = "github:astro/microvm.nix";
+    giraff = {
+      url = "github:volodiapg/giraff";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    giraff.url = "github:volodiapg/giraff/dynamicity";
+  };
+
+  nixConfig = {
+    extra-substituters = ["https://elixir-tools.cachix.org"];
+    extra-trusted-public-keys = ["elixir-tools.cachix.org-1:GfK9E139Ysi+YWeS1oNN9OaTfQjqpLwlBaz+/73tBjU="];
   };
 
   outputs = inputs @ {
@@ -36,28 +39,14 @@
         system,
         ...
       }: let
-        beamPackages = pkgs.beam.packagesWith pkgs.beam.interpreters.erlang_27;
-        crossBuildFor = target: let
-          crossPkgs = import nixpkgs {
-            inherit system;
-            crossSystem = lib.systems.elaborate target;
-            stdenv.hostPlatform.emulator = "${pkgs.qemu}/bin/qemu-x86_64";
-          };
-
-          beamPackagesCross = crossPkgs.beam.packagesWith crossPkgs.beam.interpreters.erlang_27;
-          mixNixDepsCross = import ./deps.nix {
-            inherit lib;
-            beamPackages = beamPackagesCross;
-          };
-        in {
-          name = "prod-" + target;
-          value = crossPkgs.callPackage ./giraff.nix {
-            beamPackages = beamPackagesCross;
-            mixNixDeps = mixNixDepsCross;
-            inherit lib opts;
-            inherit (self.packages.${target}) vm_deploy vm_remove;
-          };
-        };
+        elixir_nix_version = elixir_version:
+          builtins.replaceStrings ["."] ["_"] "elixir_${elixir_version}";
+        erlang_nix_version = erlang_version: "erlang_${erlang_version}";
+        inherit (pkgs) beam_minimal;
+        beamPackages =
+          beam_minimal
+          .packagesWith
+          self'.packages.erlang;
       in {
         checks = {
           pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
@@ -70,19 +59,19 @@
         };
 
         packages = rec {
+          erlang = beam_minimal.interpreters.${erlang_nix_version opts.erlang_version};
+          elixir = beamPackages.${elixir_nix_version opts.elixir_version};
           default = prod;
           prod = import ./giraff.nix {
-            inherit lib beamPackages opts;
-            inherit (self'.packages) vm_deploy vm_remove;
+            inherit lib beamPackages elixir erlang opts;
           };
           giraff_app = pkgs.dockerTools.streamLayeredImage {
             name = "giraff";
             tag = "giraff_app";
-            contents = [prod pkgs.bash]; # pkgs.coreutils pkgs.bashInteractive ];
+            contents = [prod]; # pkgs.coreutils pkgs.bashInteractive ];
 
             config = {
               Env = [
-                # "fprocess=${prod}/bin/function"
                 "LC_ALL=C.UTF-8"
                 "mode=http"
                 "http_upstream_url=http://127.0.0.1:5000"

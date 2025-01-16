@@ -16,24 +16,15 @@
       packages =
         [
           pkgs.hex
-          pkgs.elixir
-          pkgs.erlang
           pkgs.mix2nix
-          self'.packages.vm_deploy
-          self'.packages.vm_remove
-          self'.packages.vm_get_ipv6
-          self'.packages.vm_wait_online
-          self'.packages.check_ts
+          self'.packages.elixir
+          self'.packages.erlang
         ]
         ++ (with pkgs;
           [
             lexical
             statix
             just
-            postgresql
-            nix-output-monitor
-            jq
-            toybox
             skopeo
           ]
           ++ lib.optional stdenv.isLinux inotify-tools

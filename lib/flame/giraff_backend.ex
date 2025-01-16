@@ -20,7 +20,7 @@ defmodule FLAME.GiraffBackend do
              :max_replica,
              :latency_max_ms,
              :from,
-             :input_max_size_mb,
+             :input_max_size_kib,
              :target_entrypoint,
              :image,
              :local_ip,
@@ -43,7 +43,7 @@ defmodule FLAME.GiraffBackend do
             latency_max_ms: nil,
             from: nil,
             target_entrypoint: nil,
-            input_max_size_mb: nil,
+            input_max_size_kib: nil,
             image: nil,
             services: [],
             boot_timeout: nil,
@@ -74,7 +74,7 @@ defmodule FLAME.GiraffBackend do
     :max_replica,
     :latency_max_ms,
     :from,
-    :input_max_size_mb,
+    :input_max_size_kib,
     :target_entrypoint
   ]
 
@@ -90,7 +90,7 @@ defmodule FLAME.GiraffBackend do
       millicpu: 1000,
       boot_timeout: 120_000,
       max_replica: 1,
-      input_max_size_mb: 1024,
+      input_max_size_kib: 1,
       duration: 120_000,
       services: [],
       init: [],
@@ -220,7 +220,7 @@ defmodule FLAME.GiraffBackend do
                     to: "thisFunction"
                   }
                 ],
-                inputMaxSize: "#{state.input_max_size_mb} MB"
+                inputMaxSize: "#{state.input_max_size_kib} KiB"
               },
               targetNode: state.target_entrypoint
             }

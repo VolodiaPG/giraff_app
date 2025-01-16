@@ -43,7 +43,11 @@ defmodule Thumbs.MixProject do
       {:flame, ">= 0.2.0"},
       {:req, "~> 0.5.6"},
       {:ex_cmd, "~> 0.10.0"},
-      {:plug, "~> 1.15"}
+      {:plug, "~> 1.15"},
+      # For ai model loading
+      {:bumblebee, "~> 0.6.0"},
+      # for using JIT for models on the cpu/gpu
+      {:exla, ">= 0.0.0"}
     ]
   end
 
