@@ -3,6 +3,14 @@ defmodule GiraffWeb.Endpoint do
 
   require Logger
 
+  plug(Plug.Parsers,
+    parsers: [:urlencoded, :multipart, :json],
+    pass: ["*/*"],
+    json_decoder: Jason,
+    # Increase max file size to 100MB
+    length: 100_000_000
+  )
+
   plug(:match)
   plug(:dispatch)
 
@@ -12,8 +20,13 @@ defmodule GiraffWeb.Endpoint do
 
   post "/transcribe" do
     case conn.body_params do
-      %{"audio" => %Plug.Upload{path: temp_path}} ->
-        case Giraff.AI.SpeechRecognition.transcribe_audio(temp_path) do
+      %{"file" => %Plug.Upload{path: temp_path}} ->
+        case FLAME.call(
+               Giraff.FFMpegRunner,
+               fn ->
+                 Giraff.AI.SpeechRecognition.transcribe_audio(temp_path)
+               end
+             ) do
           {:ok, transcription} ->
             conn
             |> put_resp_content_type("application/json")
@@ -25,7 +38,9 @@ defmodule GiraffWeb.Endpoint do
             |> send_resp(422, Jason.encode!(%{error: "Transcription failed: #{reason}"}))
         end
 
-      _ ->
+      params ->
+        Logger.warning("Invalid params received: #{inspect(params)}")
+
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))

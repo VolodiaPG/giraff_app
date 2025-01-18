@@ -1,8 +1,4 @@
-{
-  lib,
-  pkgs,
-  ...
-}: {
+{lib, ...}: {
   perSystem = {
     config,
     self',
@@ -14,18 +10,19 @@
     formatter = pkgs.alejandra;
     devShells.default = pkgs.mkShell {
       packages =
-        [
-          pkgs.hex
-          pkgs.mix2nix
-          self'.packages.elixir
-          self'.packages.erlang
-        ]
+        (with self'.packages; [
+          elixir
+          erlang
+        ])
         ++ (with pkgs;
           [
+            hex
             lexical
             statix
             just
             skopeo
+            # Required at runtime
+            ffmpeg-headless
           ]
           ++ lib.optional stdenv.isLinux inotify-tools
           ++ (
@@ -34,7 +31,6 @@
               CoreServices
             ])
           ));
-
       inherit (config.checks.pre-commit-check) shellHook;
     };
   };

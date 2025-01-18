@@ -47,7 +47,9 @@ defmodule Thumbs.MixProject do
       # For ai model loading
       {:bumblebee, "~> 0.6.0"},
       # for using JIT for models on the cpu/gpu
-      {:exla, ">= 0.0.0"}
+      {:exla, ">= 0.9.2"},
+      {:deps_nix, "~> 2.0", only: :dev},
+      {:rustler, ">= 0.0.0", optional: true}
     ]
   end
 
@@ -64,6 +66,8 @@ defmodule Thumbs.MixProject do
       #   "hex.setup",
       #        "rebar.setup"
       #      ],
+      "deps.get": ["deps.get", "deps.nix"],
+      "deps.update": ["deps.update", "deps.nix"]
     ]
   end
 end

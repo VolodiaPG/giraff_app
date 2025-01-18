@@ -3,25 +3,49 @@
   beamPackages,
   elixir,
   erlang,
-  mixNixDeps ? import ./deps.nix {inherit lib beamPackages;},
+  pkgs,
   opts,
-}:
-beamPackages.mixRelease {
-  inherit mixNixDeps elixir erlang;
-  inherit (opts.app) pname version;
-  src = ./.;
-  stripDebug = true;
+}: let
+  mixNixDeps = import ./deps.nix {
+    inherit lib beamPackages pkgs;
+    overrides = final: prev: {
+      exla = prev.exla.overrideAttrs (old: {
+        XLA_ARCHIVE_PATH = pkgs.fetchurl {
+          url = let
+            system =
+              if pkgs.stdenv.hostPlatform.isGnu
+              then "${pkgs.stdenv.hostPlatform.system}-gnu"
+              else pkgs.stdenv.hostPlatform.system;
+            inherit (prev.xla) version;
+          in "https://github.com/elixir-nx/xla/releases/download/v${version}/xla_extension-${version}-${system}-cpu.tar.gz";
+          hash = "sha256-o0ytpdo1lHWg014A8Lk3J+Jv141+oiBoahCTDAVn4iQ=";
+        };
 
-  # postInstall = ''
-  #   # Strip debug symbols and shrink rpath
-  #   find $out -type f -exec patchelf --shrink-rpath '{}' \; -exec strip '{}' \; 2>/dev/null
-  #   # Remove unnecessary files
-  #   rm -rf $out/lib/*/consolidated
-  #   rm -rf $out/lib/*/ebin/*.beam
-  #   rm -rf $out/lib/*/priv/static
-  # '';
+        prePatch = ''
+          substituteInPlace mix.exs \
+            --replace 'XLA.archive_path!()' 'System.get_env("XLA_ARCHIVE_PATH")'
+          substituteInPlace mix.exs \
+            --replace 'compilers: [:extract_xla, :cached_make] ++ Mix.compilers(),' 'compilers: [:extract_xla, :elixir_make] ++ Mix.compilers(),'
+        '';
 
-  preFixup = ''
-    makeWrapper $out/bin/server $out/bin/function
-  '';
-}
+        postInstall = ''
+          OUTDIR=$out/lib/erlang/lib/${old.name}/priv
+          rm -rf $OUTDIR/{xla_extension,libexla.so}
+          cp -Hrt $OUTDIR cache/{xla_extension,libexla.so}
+        '';
+      });
+    };
+  };
+
+  drv = beamPackages.mixRelease {
+    inherit mixNixDeps elixir erlang;
+    inherit (opts.app) pname version;
+    src = ./.;
+    stripDebug = true;
+
+    preFixup = ''
+      makeWrapper $out/bin/server $out/bin/function
+    '';
+  };
+in
+  drv

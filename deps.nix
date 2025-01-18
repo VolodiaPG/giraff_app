@@ -1,652 +1,846 @@
 {
+  pkgs,
   lib,
   beamPackages,
   overrides ? (x: y: {}),
 }: let
-  buildRebar3 = lib.makeOverridable beamPackages.buildRebar3;
   buildMix = lib.makeOverridable beamPackages.buildMix;
-  buildErlangMk = lib.makeOverridable beamPackages.buildErlangMk;
+  buildRebar3 = lib.makeOverridable beamPackages.buildRebar3;
 
-  self = packages // (overrides self packages);
+  workarounds = {
+    portCompiler = _unusedArgs: old: {
+      buildPlugins = [pkgs.beamPackages.pc];
+    };
+
+    rustlerPrecompiled = {toolchain ? null, ...}: old: let
+      extendedPkgs = pkgs.extend fenixOverlay;
+      fenixOverlay = import "${
+        fetchTarball {
+          url = "https://github.com/nix-community/fenix/archive/056c9393c821a4df356df6ce7f14c722dc8717ec.tar.gz";
+          sha256 = "sha256:1cdfh6nj81gjmn689snigidyq7w98gd8hkl5rvhly6xj7vyppmnd";
+        }
+      }/overlay.nix";
+      nativeDir = "${old.src}/native/${with builtins; head (attrNames (readDir "${old.src}/native"))}";
+      fenix =
+        if toolchain == null
+        then extendedPkgs.fenix.stable
+        else extendedPkgs.fenix.fromToolchainName toolchain;
+      native =
+        (extendedPkgs.makeRustPlatform {
+          inherit (fenix) cargo rustc;
+        })
+        .buildRustPackage
+        {
+          pname = "${old.packageName}-native";
+          version = old.version;
+          src = nativeDir;
+          cargoLock = {
+            lockFile = "${nativeDir}/Cargo.lock";
+          };
+          nativeBuildInputs =
+            [
+              extendedPkgs.cmake
+            ]
+            ++ extendedPkgs.lib.lists.optional extendedPkgs.stdenv.isDarwin extendedPkgs.darwin.IOKit;
+          doCheck = false;
+        };
+    in {
+      nativeBuildInputs = [extendedPkgs.cargo];
+
+      env.RUSTLER_PRECOMPILED_FORCE_BUILD_ALL = "true";
+      env.RUSTLER_PRECOMPILED_GLOBAL_CACHE_PATH = "unused-but-required";
+
+      preConfigure = ''
+        mkdir -p priv/native
+        for lib in ${native}/lib/*
+        do
+          ln -s "$lib" "priv/native/$(basename "$lib")"
+        done
+      '';
+
+      buildPhase = ''
+        suggestion() {
+          echo "***********************************************"
+          echo "                 deps_nix                      "
+          echo
+          echo " Rust dependency build failed.                 "
+          echo
+          echo " If you saw network errors, you might need     "
+          echo " to disable compilation on the appropriate     "
+          echo " RustlerPrecompiled module in your             "
+          echo " application config.                           "
+          echo
+          echo " We think you need this:                       "
+          echo
+          echo -n " "
+          grep -Rl 'use RustlerPrecompiled' lib \
+            | xargs grep 'defmodule' \
+            | sed 's/defmodule \(.*\) do/config :${old.packageName}, \1, skip_compilation?: true/'
+          echo "***********************************************"
+          exit 1
+        }
+        trap suggestion ERR
+        ${old.buildPhase}
+      '';
+    };
+  };
+
+  defaultOverrides = (
+    final: prev: let
+      apps = {
+        crc32cer = [
+          {
+            name = "portCompiler";
+          }
+        ];
+        explorer = [
+          {
+            name = "rustlerPrecompiled";
+            toolchain = {
+              name = "nightly-2024-11-01";
+              sha256 = "sha256-wq7bZ1/IlmmLkSa3GUJgK17dTWcKyf5A+ndS9yRwB88=";
+            };
+          }
+        ];
+        snappyer = [
+          {
+            name = "portCompiler";
+          }
+        ];
+      };
+
+      applyOverrides = appName: drv: let
+        allOverridesForApp =
+          builtins.foldl' (
+            acc: workaround: acc // (workarounds.${workaround.name} workaround) drv
+          ) {}
+          apps.${appName};
+      in
+        if builtins.hasAttr appName apps
+        then drv.override allOverridesForApp
+        else drv;
+    in
+      builtins.mapAttrs applyOverrides prev
+  );
+
+  self = packages // (defaultOverrides self packages) // (overrides self packages);
 
   packages = with beamPackages;
   with self; {
-    bandit = buildMix rec {
-      name = "bandit";
+    axon = let
+      version = "0.7.0";
+      drv = buildMix {
+        inherit version;
+        name = "axon";
+        appConfigPath = ./config;
+
+        src = fetchHex {
+          inherit version;
+          pkg = "axon";
+          sha256 = "ee9857a143c9486597ceff434e6ca833dc1241be6158b01025b8217757ed1036";
+        };
+
+        beamDeps = [
+          nx
+          polaris
+        ];
+      };
+    in
+      drv;
+
+    bandit = let
       version = "1.6.0";
+      drv = buildMix {
+        inherit version;
+        name = "bandit";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "bandit";
-        version = "${version}";
-        sha256 = "fd2491e564a7c5e11ff8496ebf530c342c742452c59de17ac0fb1f814a0ab01a";
+        src = fetchHex {
+          inherit version;
+          pkg = "bandit";
+          sha256 = "fd2491e564a7c5e11ff8496ebf530c342c742452c59de17ac0fb1f814a0ab01a";
+        };
+
+        beamDeps = [
+          hpax
+          plug
+          telemetry
+          thousand_island
+          websock
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [hpax plug telemetry thousand_island websock];
-    };
+    bumblebee = let
+      version = "0.6.0";
+      drv = buildMix {
+        inherit version;
+        name = "bumblebee";
+        appConfigPath = ./config;
 
-    castore = buildMix rec {
-      name = "castore";
+        src = fetchHex {
+          inherit version;
+          pkg = "bumblebee";
+          sha256 = "a8b863179d314e9615b00291d5dcd2dc043b294edc25b4483d5c88d1c8d21c89";
+        };
+
+        beamDeps = [
+          axon
+          jason
+          nx
+          nx_image
+          nx_signal
+          progress_bar
+          safetensors
+          tokenizers
+          unpickler
+          unzip
+        ];
+      };
+    in
+      drv;
+
+    castore = let
       version = "1.0.8";
+      drv = buildMix {
+        inherit version;
+        name = "castore";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "castore";
-        version = "${version}";
-        sha256 = "0b2b66d2ee742cb1d9cb8c8be3b43c3a70ee8651f37b75a8b982e036752983f1";
+        src = fetchHex {
+          inherit version;
+          pkg = "castore";
+          sha256 = "0b2b66d2ee742cb1d9cb8c8be3b43c3a70ee8651f37b75a8b982e036752983f1";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
+    complex = let
+      version = "0.6.0";
+      drv = buildMix {
+        inherit version;
+        name = "complex";
+        appConfigPath = ./config;
 
-    cowboy = buildErlangMk rec {
-      name = "cowboy";
-      version = "2.12.0";
-
-      src = fetchHex {
-        pkg = "cowboy";
-        version = "${version}";
-        sha256 = "8a7abe6d183372ceb21caa2709bec928ab2b72e18a3911aa1771639bef82651e";
+        src = fetchHex {
+          inherit version;
+          pkg = "complex";
+          sha256 = "0a5fa95580dcaf30fcd60fe1aaf24327c0fe401e98c24d892e172e79498269f9";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [cowlib ranch];
-    };
-
-    cowboy_telemetry = buildRebar3 rec {
-      name = "cowboy_telemetry";
-      version = "0.4.0";
-
-      src = fetchHex {
-        pkg = "cowboy_telemetry";
-        version = "${version}";
-        sha256 = "7d98bac1ee4565d31b62d59f8823dfd8356a169e7fcbb83831b8a5397404c9de";
-      };
-
-      beamDeps = [cowboy telemetry];
-    };
-
-    cowlib = buildRebar3 rec {
-      name = "cowlib";
-      version = "2.13.0";
-
-      src = fetchHex {
-        pkg = "cowlib";
-        version = "${version}";
-        sha256 = "e1e1284dc3fc030a64b1ad0d8382ae7e99da46c3246b815318a4b848873800a4";
-      };
-
-      beamDeps = [];
-    };
-
-    db_connection = buildMix rec {
-      name = "db_connection";
-      version = "2.7.0";
-
-      src = fetchHex {
-        pkg = "db_connection";
-        version = "${version}";
-        sha256 = "dcf08f31b2701f857dfc787fbad78223d61a32204f217f15e881dd93e4bdd3ff";
-      };
-
-      beamDeps = [telemetry];
-    };
-
-    decimal = buildMix rec {
-      name = "decimal";
+    decimal = let
       version = "2.1.1";
+      drv = buildMix {
+        inherit version;
+        name = "decimal";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "decimal";
-        version = "${version}";
-        sha256 = "53cfe5f497ed0e7771ae1a475575603d77425099ba5faef9394932b35020ffcc";
+        src = fetchHex {
+          inherit version;
+          pkg = "decimal";
+          sha256 = "53cfe5f497ed0e7771ae1a475575603d77425099ba5faef9394932b35020ffcc";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
+    elixir_make = let
+      version = "0.9.0";
+      drv = buildMix {
+        inherit version;
+        name = "elixir_make";
+        appConfigPath = ./config;
 
-    dns_cluster = buildMix rec {
-      name = "dns_cluster";
-      version = "0.1.3";
-
-      src = fetchHex {
-        pkg = "dns_cluster";
-        version = "${version}";
-        sha256 = "46cb7c4a1b3e52c7ad4cbe33ca5079fbde4840dedeafca2baf77996c2da1bc33";
+        src = fetchHex {
+          inherit version;
+          pkg = "elixir_make";
+          sha256 = "db23d4fd8b757462ad02f8aa73431a426fe6671c80b200d9710caf3d1dd0ffdb";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    ecto = buildMix rec {
-      name = "ecto";
-      version = "3.11.2";
-
-      src = fetchHex {
-        pkg = "ecto";
-        version = "${version}";
-        sha256 = "3c38bca2c6f8d8023f2145326cc8a80100c3ffe4dcbd9842ff867f7fc6156c65";
-      };
-
-      beamDeps = [decimal jason telemetry];
-    };
-
-    ecto_sql = buildMix rec {
-      name = "ecto_sql";
-      version = "3.11.3";
-
-      src = fetchHex {
-        pkg = "ecto_sql";
-        version = "${version}";
-        sha256 = "e5f36e3d736b99c7fee3e631333b8394ade4bafe9d96d35669fca2d81c2be928";
-      };
-
-      beamDeps = [db_connection ecto postgrex telemetry];
-    };
-
-    erlexec = buildRebar3 rec {
-      name = "erlexec";
-      version = "2.0.7";
-
-      src = fetchHex {
-        pkg = "erlexec";
-        version = "${version}";
-        sha256 = "af2dd940bb8e32f5aa40a65cb455dcaa18f5334fd3507e9bfd14a021e9630897";
-      };
-
-      beamDeps = [];
-    };
-
-    esbuild = buildMix rec {
-      name = "esbuild";
-      version = "0.8.1";
-
-      src = fetchHex {
-        pkg = "esbuild";
-        version = "${version}";
-        sha256 = "25fc876a67c13cb0a776e7b5d7974851556baeda2085296c14ab48555ea7560f";
-      };
-
-      beamDeps = [castore jason];
-    };
-
-    ex_cmd = buildMix rec {
-      name = "ex_cmd";
+    ex_cmd = let
       version = "0.10.0";
+      drv = buildMix {
+        inherit version;
+        name = "ex_cmd";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "ex_cmd";
-        version = "${version}";
-        sha256 = "d2575237e754676cd3d38dc39d36a99da455253a0889c1c2231a619d3ca5d7a4";
+        src = fetchHex {
+          inherit version;
+          pkg = "ex_cmd";
+          sha256 = "d2575237e754676cd3d38dc39d36a99da455253a0889c1c2231a619d3ca5d7a4";
+        };
+
+        beamDeps = [
+          gen_state_machine
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [gen_state_machine];
-    };
+    exla = let
+      version = "0.9.2";
+      drv = buildMix {
+        inherit version;
+        name = "exla";
+        appConfigPath = ./config;
 
-    expo = buildMix rec {
-      name = "expo";
-      version = "1.0.0";
+        src = fetchHex {
+          inherit version;
+          pkg = "exla";
+          sha256 = "e51085e196b466d235e93d9f5ea2cbf7d90315d216aa02e996f99bcaaa19c593";
+        };
 
-      src = fetchHex {
-        pkg = "expo";
-        version = "${version}";
-        sha256 = "18d2093d344d97678e8a331ca0391e85d29816f9664a25653fd7e6166827827c";
+        beamDeps = [
+          elixir_make
+          nimble_pool
+          nx
+          telemetry
+          xla
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    file_system = buildMix rec {
-      name = "file_system";
-      version = "1.0.0";
-
-      src = fetchHex {
-        pkg = "file_system";
-        version = "${version}";
-        sha256 = "6752092d66aec5a10e662aefeed8ddb9531d79db0bc145bb8c40325ca1d8536d";
-      };
-
-      beamDeps = [];
-    };
-
-    finch = buildMix rec {
-      name = "finch";
+    finch = let
       version = "0.19.0";
+      drv = buildMix {
+        inherit version;
+        name = "finch";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "finch";
-        version = "${version}";
-        sha256 = "fc5324ce209125d1e2fa0fcd2634601c52a787aff1cd33ee833664a5af4ea2b6";
+        src = fetchHex {
+          inherit version;
+          pkg = "finch";
+          sha256 = "fc5324ce209125d1e2fa0fcd2634601c52a787aff1cd33ee833664a5af4ea2b6";
+        };
+
+        beamDeps = [
+          mime
+          mint
+          nimble_options
+          nimble_pool
+          telemetry
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [mime mint nimble_options nimble_pool telemetry];
-    };
-
-    flame = buildMix rec {
-      name = "flame";
+    flame = let
       version = "0.3.0";
+      drv = buildMix {
+        inherit version;
+        name = "flame";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "flame";
-        version = "${version}";
-        sha256 = "263ffb2f8eaffdcaa3241072e515cb6af86c0280c763a3986934b039cac36300";
+        src = fetchHex {
+          inherit version;
+          pkg = "flame";
+          sha256 = "263ffb2f8eaffdcaa3241072e515cb6af86c0280c763a3986934b039cac36300";
+        };
+
+        beamDeps = [
+          castore
+          jason
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [castore jason];
-    };
-
-    floki = buildMix rec {
-      name = "floki";
-      version = "0.36.2";
-
-      src = fetchHex {
-        pkg = "floki";
-        version = "${version}";
-        sha256 = "a8766c0bc92f074e5cb36c4f9961982eda84c5d2b8e979ca67f5c268ec8ed580";
-      };
-
-      beamDeps = [];
-    };
-
-    gen_state_machine = buildMix rec {
-      name = "gen_state_machine";
+    gen_state_machine = let
       version = "3.0.0";
+      drv = buildMix {
+        inherit version;
+        name = "gen_state_machine";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "gen_state_machine";
-        version = "${version}";
-        sha256 = "0a59652574bebceb7309f6b749d2a41b45fdeda8dbb4da0791e355dd19f0ed15";
+        src = fetchHex {
+          inherit version;
+          pkg = "gen_state_machine";
+          sha256 = "0a59652574bebceb7309f6b749d2a41b45fdeda8dbb4da0791e355dd19f0ed15";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    gettext = buildMix rec {
-      name = "gettext";
-      version = "0.25.0";
-
-      src = fetchHex {
-        pkg = "gettext";
-        version = "${version}";
-        sha256 = "38e5d754e66af37980a94fb93bb20dcde1d2361f664b0a19f01e87296634051f";
-      };
-
-      beamDeps = [expo];
-    };
-
-    hpax = buildMix rec {
-      name = "hpax";
+    hpax = let
       version = "1.0.0";
+      drv = buildMix {
+        inherit version;
+        name = "hpax";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "hpax";
-        version = "${version}";
-        sha256 = "7f1314731d711e2ca5fdc7fd361296593fc2542570b3105595bb0bc6d0fad601";
+        src = fetchHex {
+          inherit version;
+          pkg = "hpax";
+          sha256 = "7f1314731d711e2ca5fdc7fd361296593fc2542570b3105595bb0bc6d0fad601";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    jason = buildMix rec {
-      name = "jason";
+    jason = let
       version = "1.4.4";
+      drv = buildMix {
+        inherit version;
+        name = "jason";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "jason";
-        version = "${version}";
-        sha256 = "c5eb0cab91f094599f94d55bc63409236a8ec69a21a67814529e8d5f6cc90b3b";
+        src = fetchHex {
+          inherit version;
+          pkg = "jason";
+          sha256 = "c5eb0cab91f094599f94d55bc63409236a8ec69a21a67814529e8d5f6cc90b3b";
+        };
+
+        beamDeps = [
+          decimal
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [decimal];
-    };
-
-    mime = buildMix rec {
-      name = "mime";
+    mime = let
       version = "2.0.6";
+      drv = buildMix {
+        inherit version;
+        name = "mime";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "mime";
-        version = "${version}";
-        sha256 = "c9945363a6b26d747389aac3643f8e0e09d30499a138ad64fe8fd1d13d9b153e";
+        src = fetchHex {
+          inherit version;
+          pkg = "mime";
+          sha256 = "c9945363a6b26d747389aac3643f8e0e09d30499a138ad64fe8fd1d13d9b153e";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    mint = buildMix rec {
-      name = "mint";
+    mint = let
       version = "1.6.2";
+      drv = buildMix {
+        inherit version;
+        name = "mint";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "mint";
-        version = "${version}";
-        sha256 = "5ee441dffc1892f1ae59127f74afe8fd82fda6587794278d924e4d90ea3d63f9";
+        src = fetchHex {
+          inherit version;
+          pkg = "mint";
+          sha256 = "5ee441dffc1892f1ae59127f74afe8fd82fda6587794278d924e4d90ea3d63f9";
+        };
+
+        beamDeps = [
+          castore
+          hpax
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [castore hpax];
-    };
-
-    nimble_options = buildMix rec {
-      name = "nimble_options";
+    nimble_options = let
       version = "1.1.1";
+      drv = buildMix {
+        inherit version;
+        name = "nimble_options";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "nimble_options";
-        version = "${version}";
-        sha256 = "821b2470ca9442c4b6984882fe9bb0389371b8ddec4d45a9504f00a66f650b44";
+        src = fetchHex {
+          inherit version;
+          pkg = "nimble_options";
+          sha256 = "821b2470ca9442c4b6984882fe9bb0389371b8ddec4d45a9504f00a66f650b44";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    nimble_ownership = buildMix rec {
-      name = "nimble_ownership";
-      version = "0.3.1";
-
-      src = fetchHex {
-        pkg = "nimble_ownership";
-        version = "${version}";
-        sha256 = "4bf510adedff0449a1d6e200e43e57a814794c8b5b6439071274d248d272a549";
-      };
-
-      beamDeps = [];
-    };
-
-    nimble_pool = buildMix rec {
-      name = "nimble_pool";
+    nimble_pool = let
       version = "1.1.0";
+      drv = buildMix {
+        inherit version;
+        name = "nimble_pool";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "nimble_pool";
-        version = "${version}";
-        sha256 = "af2e4e6b34197db81f7aad230c1118eac993acc0dae6bc83bac0126d4ae0813a";
+        src = fetchHex {
+          inherit version;
+          pkg = "nimble_pool";
+          sha256 = "af2e4e6b34197db81f7aad230c1118eac993acc0dae6bc83bac0126d4ae0813a";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
+    nx = let
+      version = "0.9.2";
+      drv = buildMix {
+        inherit version;
+        name = "nx";
+        appConfigPath = ./config;
 
-    phoenix = buildMix rec {
-      name = "phoenix";
-      version = "1.7.14";
+        src = fetchHex {
+          inherit version;
+          pkg = "nx";
+          sha256 = "914d74741617d8103de8ab1f8c880353e555263e1c397b8a1109f79a3716557f";
+        };
 
-      src = fetchHex {
-        pkg = "phoenix";
-        version = "${version}";
-        sha256 = "c7859bc56cc5dfef19ecfc240775dae358cbaa530231118a9e014df392ace61a";
+        beamDeps = [
+          complex
+          telemetry
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [castore jason phoenix_pubsub phoenix_template plug plug_cowboy plug_crypto telemetry websock_adapter];
-    };
+    nx_image = let
+      version = "0.1.2";
+      drv = buildMix {
+        inherit version;
+        name = "nx_image";
+        appConfigPath = ./config;
 
-    phoenix_ecto = buildMix rec {
-      name = "phoenix_ecto";
-      version = "4.6.2";
+        src = fetchHex {
+          inherit version;
+          pkg = "nx_image";
+          sha256 = "9161863c42405ddccb6dbbbeae078ad23e30201509cc804b3b3a7c9e98764b81";
+        };
 
-      src = fetchHex {
-        pkg = "phoenix_ecto";
-        version = "${version}";
-        sha256 = "3f94d025f59de86be00f5f8c5dd7b5965a3298458d21ab1c328488be3b5fcd59";
+        beamDeps = [
+          nx
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [ecto phoenix_html plug postgrex];
-    };
+    nx_signal = let
+      version = "0.2.0";
+      drv = buildMix {
+        inherit version;
+        name = "nx_signal";
+        appConfigPath = ./config;
 
-    phoenix_html = buildMix rec {
-      name = "phoenix_html";
-      version = "3.3.4";
+        src = fetchHex {
+          inherit version;
+          pkg = "nx_signal";
+          sha256 = "7247e5e18a177a59c4cb5355952900c62fdeadeb2bad02a9a34237b68744e2bb";
+        };
 
-      src = fetchHex {
-        pkg = "phoenix_html";
-        version = "${version}";
-        sha256 = "0249d3abec3714aff3415e7ee3d9786cb325be3151e6c4b3021502c585bf53fb";
+        beamDeps = [
+          nx
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [plug];
-    };
-
-    phoenix_live_dashboard = buildMix rec {
-      name = "phoenix_live_dashboard";
-      version = "0.8.4";
-
-      src = fetchHex {
-        pkg = "phoenix_live_dashboard";
-        version = "${version}";
-        sha256 = "2984aae96994fbc5c61795a73b8fb58153b41ff934019cfb522343d2d3817d59";
-      };
-
-      beamDeps = [ecto mime phoenix_live_view telemetry_metrics];
-    };
-
-    phoenix_live_reload = buildMix rec {
-      name = "phoenix_live_reload";
-      version = "1.5.3";
-
-      src = fetchHex {
-        pkg = "phoenix_live_reload";
-        version = "${version}";
-        sha256 = "b4ec9cd73cb01ff1bd1cac92e045d13e7030330b74164297d1aee3907b54803c";
-      };
-
-      beamDeps = [file_system phoenix];
-    };
-
-    phoenix_live_view = buildMix rec {
-      name = "phoenix_live_view";
-      version = "0.20.17";
-
-      src = fetchHex {
-        pkg = "phoenix_live_view";
-        version = "${version}";
-        sha256 = "a61d741ffb78c85fdbca0de084da6a48f8ceb5261a79165b5a0b59e5f65ce98b";
-      };
-
-      beamDeps = [floki jason phoenix phoenix_html phoenix_template plug telemetry];
-    };
-
-    phoenix_pubsub = buildMix rec {
-      name = "phoenix_pubsub";
-      version = "2.1.3";
-
-      src = fetchHex {
-        pkg = "phoenix_pubsub";
-        version = "${version}";
-        sha256 = "bba06bc1dcfd8cb086759f0edc94a8ba2bc8896d5331a1e2c2902bf8e36ee502";
-      };
-
-      beamDeps = [];
-    };
-
-    phoenix_template = buildMix rec {
-      name = "phoenix_template";
-      version = "1.0.4";
-
-      src = fetchHex {
-        pkg = "phoenix_template";
-        version = "${version}";
-        sha256 = "2c0c81f0e5c6753faf5cca2f229c9709919aba34fab866d3bc05060c9c444206";
-      };
-
-      beamDeps = [phoenix_html];
-    };
-
-    plug = buildMix rec {
-      name = "plug";
+    plug = let
       version = "1.16.1";
+      drv = buildMix {
+        inherit version;
+        name = "plug";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "plug";
-        version = "${version}";
-        sha256 = "a13ff6b9006b03d7e33874945b2755253841b238c34071ed85b0e86057f8cddc";
+        src = fetchHex {
+          inherit version;
+          pkg = "plug";
+          sha256 = "a13ff6b9006b03d7e33874945b2755253841b238c34071ed85b0e86057f8cddc";
+        };
+
+        beamDeps = [
+          mime
+          plug_crypto
+          telemetry
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [mime plug_crypto telemetry];
-    };
-
-    plug_cowboy = buildMix rec {
-      name = "plug_cowboy";
-      version = "2.7.1";
-
-      src = fetchHex {
-        pkg = "plug_cowboy";
-        version = "${version}";
-        sha256 = "02dbd5f9ab571b864ae39418db7811618506256f6d13b4a45037e5fe78dc5de3";
-      };
-
-      beamDeps = [cowboy cowboy_telemetry plug];
-    };
-
-    plug_crypto = buildMix rec {
-      name = "plug_crypto";
+    plug_crypto = let
       version = "2.1.0";
+      drv = buildMix {
+        inherit version;
+        name = "plug_crypto";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "plug_crypto";
-        version = "${version}";
-        sha256 = "131216a4b030b8f8ce0f26038bc4421ae60e4bb95c5cf5395e1421437824c4fa";
+        src = fetchHex {
+          inherit version;
+          pkg = "plug_crypto";
+          sha256 = "131216a4b030b8f8ce0f26038bc4421ae60e4bb95c5cf5395e1421437824c4fa";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
+    polaris = let
+      version = "0.1.0";
+      drv = buildMix {
+        inherit version;
+        name = "polaris";
+        appConfigPath = ./config;
 
-    postgrex = buildMix rec {
-      name = "postgrex";
-      version = "0.19.0";
+        src = fetchHex {
+          inherit version;
+          pkg = "polaris";
+          sha256 = "13ef2b166650e533cb24b10e2f3b8ab4f2f449ba4d63156e8c569527f206e2c2";
+        };
 
-      src = fetchHex {
-        pkg = "postgrex";
-        version = "${version}";
-        sha256 = "dba2d2a0a8637defbf2307e8629cb2526388ba7348f67d04ec77a5d6a72ecfae";
+        beamDeps = [
+          nx
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [db_connection decimal jason];
-    };
+    progress_bar = let
+      version = "3.0.0";
+      drv = buildMix {
+        inherit version;
+        name = "progress_bar";
+        appConfigPath = ./config;
 
-    ranch = buildRebar3 rec {
-      name = "ranch";
-      version = "1.8.0";
+        src = fetchHex {
+          inherit version;
+          pkg = "progress_bar";
+          sha256 = "6981c2b25ab24aecc91a2dc46623658e1399c21a2ae24db986b90d678530f2b7";
+        };
 
-      src = fetchHex {
-        pkg = "ranch";
-        version = "${version}";
-        sha256 = "49fbcfd3682fab1f5d109351b61257676da1a2fdbe295904176d5e521a2ddfe5";
+        beamDeps = [
+          decimal
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    req = buildMix rec {
-      name = "req";
+    req = let
       version = "0.5.8";
+      drv = buildMix {
+        inherit version;
+        name = "req";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "req";
-        version = "${version}";
-        sha256 = "d7fc5898a566477e174f26887821a3c5082b243885520ee4b45555f5d53f40ef";
+        src = fetchHex {
+          inherit version;
+          pkg = "req";
+          sha256 = "d7fc5898a566477e174f26887821a3c5082b243885520ee4b45555f5d53f40ef";
+        };
+
+        beamDeps = [
+          finch
+          jason
+          mime
+          plug
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [finch jason mime plug];
-    };
+    rustler = let
+      version = "0.36.0";
+      drv = buildMix {
+        inherit version;
+        name = "rustler";
+        appConfigPath = ./config;
 
-    swoosh = buildMix rec {
-      name = "swoosh";
-      version = "1.16.10";
+        src = fetchHex {
+          inherit version;
+          pkg = "rustler";
+          sha256 = "03808c7d289da01da29d8d2fe19d07cae9f3d2f05ebaed87f0820a4dcfabe9d5";
+        };
 
-      src = fetchHex {
-        pkg = "swoosh";
-        version = "${version}";
-        sha256 = "756be04db173c0cbe318f1dfe2bcc88aa63aed78cf5a4b02b61b36ee11fc716a";
+        beamDeps = [
+          jason
+          req
+          toml
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [bandit cowboy finch jason mime plug plug_cowboy req telemetry];
-    };
+    rustler_precompiled = let
+      version = "0.8.2";
+      drv = buildMix {
+        inherit version;
+        name = "rustler_precompiled";
+        appConfigPath = ./config;
 
-    tailwind = buildMix rec {
-      name = "tailwind";
-      version = "0.2.3";
+        src = fetchHex {
+          inherit version;
+          pkg = "rustler_precompiled";
+          sha256 = "63d1bd5f8e23096d1ff851839923162096364bac8656a4a3c00d1fff8e83ee0a";
+        };
 
-      src = fetchHex {
-        pkg = "tailwind";
-        version = "${version}";
-        sha256 = "8e45e7a34a676a7747d04f7913a96c770c85e6be810a1d7f91e713d3a3655b5d";
+        beamDeps = [
+          castore
+          rustler
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [castore];
-    };
+    safetensors = let
+      version = "0.1.3";
+      drv = buildMix {
+        inherit version;
+        name = "safetensors";
+        appConfigPath = ./config;
 
-    telemetry = buildRebar3 rec {
-      name = "telemetry";
+        src = fetchHex {
+          inherit version;
+          pkg = "safetensors";
+          sha256 = "fe50b53ea59fde4e723dd1a2e31cfdc6013e69343afac84c6be86d6d7c562c14";
+        };
+
+        beamDeps = [
+          jason
+          nx
+        ];
+      };
+    in
+      drv;
+
+    telemetry = let
       version = "1.3.0";
+      drv = buildRebar3 {
+        inherit version;
+        name = "telemetry";
 
-      src = fetchHex {
-        pkg = "telemetry";
-        version = "${version}";
-        sha256 = "7015fc8919dbe63764f4b4b87a95b7c0996bd539e0d499be6ec9d7f3875b79e6";
+        src = fetchHex {
+          inherit version;
+          pkg = "telemetry";
+          sha256 = "7015fc8919dbe63764f4b4b87a95b7c0996bd539e0d499be6ec9d7f3875b79e6";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
-
-    telemetry_metrics = buildMix rec {
-      name = "telemetry_metrics";
-      version = "0.6.2";
-
-      src = fetchHex {
-        pkg = "telemetry_metrics";
-        version = "${version}";
-        sha256 = "9b43db0dc33863930b9ef9d27137e78974756f5f198cae18409970ed6fa5b561";
-      };
-
-      beamDeps = [telemetry];
-    };
-
-    telemetry_poller = buildRebar3 rec {
-      name = "telemetry_poller";
-      version = "1.1.0";
-
-      src = fetchHex {
-        pkg = "telemetry_poller";
-        version = "${version}";
-        sha256 = "9eb9d9cbfd81cbd7cdd24682f8711b6e2b691289a0de6826e58452f28c103c8f";
-      };
-
-      beamDeps = [telemetry];
-    };
-
-    thousand_island = buildMix rec {
-      name = "thousand_island";
+    thousand_island = let
       version = "1.3.7";
+      drv = buildMix {
+        inherit version;
+        name = "thousand_island";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "thousand_island";
-        version = "${version}";
-        sha256 = "0139335079953de41d381a6134d8b618d53d084f558c734f2662d1a72818dd12";
+        src = fetchHex {
+          inherit version;
+          pkg = "thousand_island";
+          sha256 = "0139335079953de41d381a6134d8b618d53d084f558c734f2662d1a72818dd12";
+        };
+
+        beamDeps = [
+          telemetry
+        ];
       };
+    in
+      drv;
 
-      beamDeps = [telemetry];
-    };
+    tokenizers = let
+      version = "0.5.1";
+      drv = buildMix {
+        inherit version;
+        name = "tokenizers";
+        appConfigPath = ./config;
 
-    websock = buildMix rec {
-      name = "websock";
+        src = fetchHex {
+          inherit version;
+          pkg = "tokenizers";
+          sha256 = "5f08d97cc7f2ed3d71d370d68120da6d3de010948ccf676c9c0eb591ba4bacc9";
+        };
+
+        beamDeps = [
+          castore
+          rustler
+          rustler_precompiled
+        ];
+      };
+    in
+      drv.override (workarounds.rustlerPrecompiled {} drv);
+
+    toml = let
+      version = "0.7.0";
+      drv = buildMix {
+        inherit version;
+        name = "toml";
+        appConfigPath = ./config;
+
+        src = fetchHex {
+          inherit version;
+          pkg = "toml";
+          sha256 = "0690246a2478c1defd100b0c9b89b4ea280a22be9a7b313a8a058a2408a2fa70";
+        };
+      };
+    in
+      drv;
+
+    unpickler = let
+      version = "0.1.0";
+      drv = buildMix {
+        inherit version;
+        name = "unpickler";
+        appConfigPath = ./config;
+
+        src = fetchHex {
+          inherit version;
+          pkg = "unpickler";
+          sha256 = "e2b3f61e62406187ac52afead8a63bfb4e49394028993f3c4c42712743cab79e";
+        };
+      };
+    in
+      drv;
+
+    unzip = let
+      version = "0.12.0";
+      drv = buildMix {
+        inherit version;
+        name = "unzip";
+        appConfigPath = ./config;
+
+        src = fetchHex {
+          inherit version;
+          pkg = "unzip";
+          sha256 = "95655b72db368e5a84951f0bed586ac053b55ee3815fd96062fce10ce4fc998d";
+        };
+      };
+    in
+      drv;
+
+    websock = let
       version = "0.5.3";
+      drv = buildMix {
+        inherit version;
+        name = "websock";
+        appConfigPath = ./config;
 
-      src = fetchHex {
-        pkg = "websock";
-        version = "${version}";
-        sha256 = "6105453d7fac22c712ad66fab1d45abdf049868f253cf719b625151460b8b453";
+        src = fetchHex {
+          inherit version;
+          pkg = "websock";
+          sha256 = "6105453d7fac22c712ad66fab1d45abdf049868f253cf719b625151460b8b453";
+        };
       };
+    in
+      drv;
 
-      beamDeps = [];
-    };
+    xla = let
+      version = "0.8.0";
+      drv = buildMix {
+        inherit version;
+        name = "xla";
+        appConfigPath = ./config;
 
-    websock_adapter = buildMix rec {
-      name = "websock_adapter";
-      version = "0.5.7";
+        src = fetchHex {
+          inherit version;
+          pkg = "xla";
+          sha256 = "739c61c8d93b97e12ba0369d10e76130224c208f1a76ad293e3581f056833e57";
+        };
 
-      src = fetchHex {
-        pkg = "websock_adapter";
-        version = "${version}";
-        sha256 = "d0f478ee64deddfec64b800673fd6e0c8888b079d9f3444dd96d2a98383bdbd1";
+        beamDeps = [
+          elixir_make
+        ];
       };
-
-      beamDeps = [bandit plug plug_cowboy websock];
-    };
+    in
+      drv;
   };
 in
   self

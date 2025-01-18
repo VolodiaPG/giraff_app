@@ -26,7 +26,7 @@
     inherit (nixpkgs) lib;
     opts = import ./opts.nix;
   in
-    flake-parts.lib.mkFlake {inherit inputs;} rec {
+    flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
       imports = [
         ./flake-modules
@@ -53,7 +53,12 @@
             src = ./.;
             hooks = {
               alejandra.enable = true;
-              statix.enable = true;
+              statix = {
+                enable = true;
+                settings.ignore = [
+                  "deps.nix"
+                ];
+              };
             };
           };
         };
@@ -63,7 +68,7 @@
           elixir = beamPackages.${elixir_nix_version opts.elixir_version};
           default = prod;
           prod = import ./giraff.nix {
-            inherit lib beamPackages elixir erlang opts;
+            inherit lib beamPackages elixir erlang opts pkgs;
           };
           giraff_app = pkgs.dockerTools.streamLayeredImage {
             name = "giraff";
