@@ -70,25 +70,6 @@
           prod = import ./giraff.nix {
             inherit lib beamPackages elixir erlang opts pkgs;
           };
-          giraff_app = pkgs.dockerTools.streamLayeredImage {
-            name = "giraff";
-            tag = "giraff_app";
-            contents = [prod]; # pkgs.coreutils pkgs.bashInteractive ];
-
-            config = {
-              Env = [
-                "LC_ALL=C.UTF-8"
-                "mode=http"
-                "http_upstream_url=http://127.0.0.1:5000"
-                "ready_path=http://127.0.0.1:5000/health"
-              ];
-              ExposedPorts = {
-                "8080/tcp" = {};
-              };
-              Cmd = ["${inputs.giraff.packages.${system}.fwatchdog}/bin/of-watchdog"];
-              WorkingDir = "/";
-            };
-          };
         };
 
         apps = let

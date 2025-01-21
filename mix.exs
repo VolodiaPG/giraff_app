@@ -1,4 +1,4 @@
-defmodule Thumbs.MixProject do
+defmodule Giraff.MixProject do
   use Mix.Project
 
   def project do

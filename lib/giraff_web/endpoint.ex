@@ -18,25 +18,32 @@ defmodule GiraffWeb.Endpoint do
     send_resp(conn, 200, "")
   end
 
-  post "/transcribe" do
+  def process_speech(conn, path) do
+    case FLAME.call(
+           Giraff.FFMpegRunner,
+           fn ->
+             AI.SpeechRecognition.transcribe_audio(path)
+           end
+         ) do
+      {:ok, transcription} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(%{transcription: transcription}))
+
+      {:error, reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(422, Jason.encode!(%{error: "Transcription failed: #{reason}"}))
+    end
+  end
+
+  post "/" do
     case conn.body_params do
       %{"file" => %Plug.Upload{path: temp_path}} ->
-        case FLAME.call(
-               Giraff.FFMpegRunner,
-               fn ->
-                 Giraff.AI.SpeechRecognition.transcribe_audio(temp_path)
-               end
-             ) do
-          {:ok, transcription} ->
-            conn
-            |> put_resp_content_type("application/json")
-            |> send_resp(200, Jason.encode!(%{transcription: transcription}))
+        process_speech(conn, temp_path)
 
-          {:error, reason} ->
-            conn
-            |> put_resp_content_type("application/json")
-            |> send_resp(422, Jason.encode!(%{error: "Transcription failed: #{reason}"}))
-        end
+      %Plug.Upload{path: temp_path} ->
+        process_speech(conn, temp_path)
 
       params ->
         Logger.warning("Invalid params received: #{inspect(params)}")
@@ -47,7 +54,7 @@ defmodule GiraffWeb.Endpoint do
     end
   end
 
-  post "/" do
+  post "/toto" do
     {:ok, res, lsres} =
       FLAME.call(Giraff.FFMpegRunner, fn ->
         {res, 0} = System.cmd("uname", ["-a"])

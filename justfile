@@ -1,6 +1,8 @@
 _default: dev
 
-ghcr user: (_ghcr user "giraff_app")
+ghcr user: 
+    just _ghcr {{user}} "giraff_app"
+    just _ghcr {{user}} "giraff_speech"
 
 _ghcr user image:
     #!/usr/bin/env bash
@@ -74,3 +76,10 @@ run ip is_nix="mix":
 
 deps:
     mix deps.get
+
+
+test:
+    curl -f \
+        -X POST \
+        -F "file=@$PATH_AUDIO/1272-135031-0014.wav"  \
+        localhost:5000

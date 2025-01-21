@@ -41,7 +41,7 @@ defmodule Giraff.Application do
           backend: Application.get_env(:giraff, :toto_backend)
         },
         always: {Bandit, plug: GiraffWeb.Endpoint, port: 5000},
-        always: {Giraff.AI.SpeechRecognitionServer, []}
+        flame: {AI.SpeechRecognitionServer, []}
       )
 
     # See https://hexdocs.pm/elixir/Supervisor.html

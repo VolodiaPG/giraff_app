@@ -4,11 +4,13 @@
     self',
     inputs',
     pkgs,
-    system,
     ...
   }: {
     formatter = pkgs.alejandra;
     devShells.default = pkgs.mkShell {
+      PATH_AUDIO = inputs'.giraff.packages.dataset_audio;
+      BUMBLEBEE_CACHE_DIR = ".bumblebee_cache";
+      WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}";
       packages =
         (with self'.packages; [
           elixir
@@ -21,6 +23,7 @@
             statix
             just
             skopeo
+            nixd
             # Required at runtime
             ffmpeg-headless
           ]

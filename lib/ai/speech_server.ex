@@ -1,7 +1,7 @@
-defmodule Giraff.AI.SpeechRecognitionServer do
+defmodule AI.SpeechRecognitionServer do
   use GenServer
   require Logger
-  alias Giraff.AI.SpeechRecognition
+  alias AI.SpeechRecognition
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)

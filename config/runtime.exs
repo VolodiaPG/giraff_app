@@ -27,11 +27,11 @@ if config_env() == :prod do
       FLAME.GiraffBackend,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
-      image: "ghcr.io/volodiapg/giraff:giraff_app",
+      image: "ghcr.io/volodiapg/giraff:giraff_speech",
       millicpu: 2000,
       memory_mb: 1024,
       duration: 120_000,
-      latency_max_ms: 1000,
+      latency_max_ms: 50,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
       from: System.get_env("GIRAFF_NODE_ID")
     }
