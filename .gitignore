@@ -4,14 +4,14 @@
 !/.gitignore
 
 # Allow specific file types and configurations
-!./mix.exs
-!./mix.lock
-!./README*
-!./LICENSE*
-!./.formatter.exs
-!./.iex.exs
-!./.vscode/settings.json
-!./justfile
+!mix.exs
+!mix.lock
+!README*
+!LICENSE*
+!.formatter.exs
+!.iex.exs
+!.vscode/settings.json
+!justfile
 
 
 # Allow Nix files
@@ -19,11 +19,14 @@
 !flake.lock
 
 # Allow specific directories and their contents
-!lib/*.ex
-!test/*.ex
-!config/*.exs
-!priv/
-!rel
+!lib/**/*.ex
+!test/**/*.ex
+!test/**/*.exs
+!config/**/*.exs
+!priv/**/*
+!rel/**/*
 
 # Still blacklist
 .direnv
+deps/
+_build/
