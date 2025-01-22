@@ -21,17 +21,23 @@ config :giraff, secret_key_base: System.get_env("SECRET_KEY_BASE")
 
 config :giraff, Giraff.Application, env: config_env()
 
+config :giraff, port: System.get_env("PORT") || 5000
+
+IO.puts("Running in environment: #{System.get_env("MIX_ENV")}")
+
 if config_env() == :prod do
+  config :flame, :backend, FLAME.GiraffBackend
+
   config :giraff,
     ffmpeg_backend: {
       FLAME.GiraffBackend,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_speech",
-      millicpu: 2000,
-      memory_mb: 1024,
+      millicpu: 1000,
+      memory_mb: 2048,
       duration: 120_000,
-      latency_max_ms: 50,
+      latency_max_ms: 1000,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
       from: System.get_env("GIRAFF_NODE_ID")
     }
@@ -54,6 +60,8 @@ if config_env() == :prod do
 
   config :giraff, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 else
+  config :flame, :backend, FLAME.LocalBackend
+
   config :giraff, ffmpeg_backend: FLAME.LocalBackend
 
   config :giraff, toto_backend: FLAME.LocalBackend

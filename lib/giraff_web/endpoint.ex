@@ -18,11 +18,11 @@ defmodule GiraffWeb.Endpoint do
     send_resp(conn, 200, "")
   end
 
-  def process_speech(conn, path) do
+  def process_speech(conn, audio_data) do
     case FLAME.call(
            Giraff.FFMpegRunner,
            fn ->
-             AI.SpeechRecognition.transcribe_audio(path)
+             AI.SpeechRecognition.transcribe_audio(audio_data)
            end
          ) do
       {:ok, transcription} ->
@@ -38,19 +38,26 @@ defmodule GiraffWeb.Endpoint do
   end
 
   post "/" do
-    case conn.body_params do
-      %{"file" => %Plug.Upload{path: temp_path}} ->
-        process_speech(conn, temp_path)
+    case get_req_header(conn, "content-type") do
+      ["audio/" <> _] ->
+        # Handle raw audio file upload
+        {:ok, body, _conn} = read_body(conn)
+        process_speech(conn, body)
 
-      %Plug.Upload{path: temp_path} ->
-        process_speech(conn, temp_path)
+      _ ->
+        # Handle multipart form uploads
+        case conn.body_params do
+          %{"file" => %Plug.Upload{path: path}} ->
+            data = File.read!(path)
+            process_speech(conn, data)
 
-      params ->
-        Logger.warning("Invalid params received: #{inspect(params)}")
+          params ->
+            Logger.warning("Invalid params received: #{inspect(params)}")
 
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
+        end
     end
   end
 
@@ -77,7 +84,7 @@ defmodule GiraffWeb.Endpoint do
 
     tosend = Jason.encode!(%{"uname" => res, "ls" => lsres})
 
-    Logger.debug("Got #{tosend}")
+    Logger.info("Got #{tosend}")
 
     conn |> send_resp(200, tosend)
   end

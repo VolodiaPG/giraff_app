@@ -61,19 +61,19 @@
       };
 
       installPhase = ''
-        mkdir -p $out
+        mkdir -p $out/whisper
 
         # Copy all fetched files to the output directory
-        cp $model $out/model.safetensors
-        cp $config $out/config.json
-        cp $tokenizer $out/tokenizer.json
-        cp $vocab $out/vocab.json
-        cp $merges $out/merges.txt
-        cp $generationConfig $out/generation_config.json
-        cp $tokenizerConfig $out/tokenizer_config.json
-        cp $preprocessorConfig $out/preprocessor_config.json
-        cp $specialTokensMap $out/special_tokens_map.json
-        cp $normalizer $out/normalizer.json
+        cp $model $out/whisper/model.safetensors
+        cp $config $out/whisper/config.json
+        cp $tokenizer $out/whisper/tokenizer.json
+        cp $vocab $out/whisper/vocab.json
+        cp $merges $out/whisper/merges.txt
+        cp $generationConfig $out/whisper/generation_config.json
+        cp $tokenizerConfig $out/whisper/tokenizer_config.json
+        cp $preprocessorConfig $out/whisper/preprocessor_config.json
+        cp $specialTokensMap $out/whisper/special_tokens_map.json
+        cp $normalizer $out/whisper/normalizer.json
       '';
 
       meta = {

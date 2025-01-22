@@ -10,7 +10,7 @@
     devShells.default = pkgs.mkShell {
       PATH_AUDIO = inputs'.giraff.packages.dataset_audio;
       BUMBLEBEE_CACHE_DIR = ".bumblebee_cache";
-      WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}";
+      WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}/whisper";
       packages =
         (with self'.packages; [
           elixir
@@ -26,6 +26,7 @@
             nixd
             # Required at runtime
             ffmpeg-headless
+            moreutils
           ]
           ++ lib.optional stdenv.isLinux inotify-tools
           ++ (

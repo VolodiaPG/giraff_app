@@ -16,12 +16,12 @@ defmodule Giraff.Application do
           FLAME.Pool,
           name: Giraff.FFMpegRunner,
           min: 0,
-          max: 10,
+          max: 100,
           max_concurrency: 5,
-          boot_timeout: :timer.minutes(2),
-          shutdown_timeout: :timer.minutes(2),
-          idle_shutdown_after: :timer.minutes(2),
-          timeout: :timer.minutes(2),
+          boot_timeout: :timer.minutes(1),
+          shutdown_timeout: :timer.minutes(1),
+          idle_shutdown_after: :timer.minutes(4),
+          timeout: :timer.minutes(1),
           log: :debug,
           single_use: false,
           backend: Application.get_env(:giraff, :ffmpeg_backend)
@@ -40,7 +40,7 @@ defmodule Giraff.Application do
           single_use: false,
           backend: Application.get_env(:giraff, :toto_backend)
         },
-        always: {Bandit, plug: GiraffWeb.Endpoint, port: 5000},
+        always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)},
         flame: {AI.SpeechRecognitionServer, []}
       )
 
@@ -56,6 +56,9 @@ defmodule Giraff.Application do
   defp children(child_specs) do
     is_parent? = is_nil(FLAME.Parent.get())
     is_flame? = !is_parent? || FLAME.Backend.impl() == FLAME.LocalBackend
+
+    Logger.info("is_parent? #{is_parent?}")
+    Logger.info("is_flame? #{is_flame?} (backend: #{FLAME.Backend.impl()})")
 
     Enum.flat_map(child_specs, fn
       {:always, spec} -> [spec]

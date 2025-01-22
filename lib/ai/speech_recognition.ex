@@ -2,8 +2,6 @@ defmodule AI.SpeechRecognition do
   require Logger
 
   def setup_whisper do
-    Logger.debug("Using cache: #{Bumblebee.cache_dir()}")
-
     with {:ok, model_info} <- Bumblebee.load_model({:local, System.get_env("WHISPER_TINY_DIR")}),
          {:ok, featurizer} <-
            Bumblebee.load_featurizer({:local, System.get_env("WHISPER_TINY_DIR")}),
@@ -29,17 +27,24 @@ defmodule AI.SpeechRecognition do
     end
   end
 
-  def transcribe_audio(audio_path) do
+  def transcribe_audio(audio) do
     serving = AI.SpeechRecognitionServer.get_serving()
+    temp_path = Path.join(System.tmp_dir!(), "audio_#{:erlang.unique_integer()}")
+    File.write!(temp_path, audio)
+    audio_file = temp_path
 
-    res = Nx.Serving.run(serving, {:file, audio_path})
+    res = Nx.Serving.run(serving, {:file, audio_file})
+    # audio_preprocessed = ffmpeg_read_as_pcm(audio_file, 16000)
+    # res = Nx.Serving.run(serving, audio_preprocessed)
+
+    File.rm!(audio_file)
 
     case res do
       %{chunks: [%{text: text} | _]} ->
         {:ok, text}
 
-      _ ->
-        Logger.error("Unexpected response format: #{inspect(res)}")
+      args ->
+        Logger.error("Unexpected response format: #{inspect(res)} with args: #{inspect(args)}")
         {:error, :invalid_response}
     end
   end

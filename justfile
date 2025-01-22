@@ -1,19 +1,14 @@
 _default: dev
 
 ghcr user: 
-    just _ghcr {{user}} "giraff_app"
-    just _ghcr {{user}} "giraff_speech"
+    #!/usr/bin/env bash
+    set -e
+    just _ghcr {{user}} "giraff_app"&
+    just _ghcr {{user}} "giraff_speech"&
+    wait
 
 _ghcr user image:
-    #!/usr/bin/env bash
-    output=`$(nix build ".#{{ image }}" --print-out-paths --no-link --quiet) | gzip --fast -q | skopeo --insecure-policy copy -q docker-archive:/dev/stdin docker://ghcr.io/{{ user }}/giraff:{{ image }} 2>&1`
-    retVal=$?
-    if [ $retVal -ne 0 ]; then
-      echo -e "[{{ file_name(justfile_directory()) }}] {{ image }} \033[31mFAILED\033[0m"
-      echo -e $output
-      exit $retVal
-    fi
-    echo -e "[{{ file_name(justfile_directory()) }}] {{ image }} \033[32mOK\033[0m"
+    chronic nix run .#{{ image }}.copyTo docker://ghcr.io/{{ user }}/giraff:{{ image }}
 
 dev:
     #!/usr/bin/env bash
@@ -55,7 +50,6 @@ docker_server ip:
 
 run ip is_nix="mix":
     #!/usr/bin/env bash
-    export FLY_IMAGE=ghcr.io/volodiapg/thumbs:latest
     export SECRET_KEY_BASE=DAGr261izL5ZdFFRr7QiGG+c+kB82BrO9r0P1Lyd0BrH345ERo4GycysE3YqZI36
     export PRIVATE_IP={{ip}}
     export NAME="giraff"
@@ -82,4 +76,12 @@ test:
     curl -f \
         -X POST \
         -F "file=@$PATH_AUDIO/1272-135031-0014.wav"  \
+        localhost:5000
+
+
+test_raw:
+    curl -f \
+        -X POST \
+        -H "Content-Type: audio/wav" \
+        --data-binary "@$PATH_AUDIO/1272-135031-0014.wav" \
         localhost:5000
