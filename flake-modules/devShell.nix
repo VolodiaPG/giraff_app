@@ -19,14 +19,14 @@
         ++ (with pkgs;
           [
             hex
-            lexical
+            elixir-ls
             statix
             just
-            skopeo
             nixd
+            moreutils
             # Required at runtime
             ffmpeg-headless
-            moreutils
+            mimic
           ]
           ++ lib.optional stdenv.isLinux inotify-tools
           ++ (

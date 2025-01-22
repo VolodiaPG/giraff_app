@@ -14,7 +14,7 @@ defmodule Giraff.Application do
         always: {DynamicSupervisor, name: Giraff.DynamicSup},
         parent: {
           FLAME.Pool,
-          name: Giraff.FFMpegRunner,
+          name: Giraff.SpeechToTextBackend,
           min: 0,
           max: 100,
           max_concurrency: 5,
@@ -24,22 +24,50 @@ defmodule Giraff.Application do
           timeout: :timer.minutes(1),
           log: :debug,
           single_use: false,
-          backend: Application.get_env(:giraff, :ffmpeg_backend)
+          backend: Application.get_env(:giraff, :speech_to_text_backend)
         },
-        flame: {
-          FLAME.Pool,
-          name: Giraff.TotoRunner,
-          min: 0,
-          max: 10,
-          max_concurrency: 5,
-          boot_timeout: :timer.minutes(2),
-          shutdown_timeout: :timer.minutes(2),
-          idle_shutdown_after: :timer.minutes(2),
-          timeout: :timer.minutes(2),
-          log: :debug,
-          single_use: false,
-          backend: Application.get_env(:giraff, :toto_backend)
-        },
+        flame: fn
+          val when val in [nil, %FLAME.Parent{backend_app: Giraff.SpeechToTextBackend}] ->
+            {
+              FLAME.Pool,
+              name: Giraff.TextToSpeechBackend,
+              min: 0,
+              max: 10,
+              max_concurrency: 5,
+              boot_timeout: :timer.minutes(2),
+              shutdown_timeout: :timer.minutes(2),
+              idle_shutdown_after: :timer.minutes(2),
+              timeout: :timer.minutes(2),
+              log: :debug,
+              single_use: false,
+              backend: Application.get_env(:giraff, :text_to_speech_backend)
+            }
+
+          parent ->
+            Logger.warning("Unexpected parent: #{inspect(parent)}")
+            nil
+        end,
+        flame: fn
+          val when val in [nil, %FLAME.Parent{backend_app: Giraff.TextToSpeechBackend}] ->
+            {
+              FLAME.Pool,
+              name: Giraff.EndGameBackend,
+              min: 0,
+              max: 10,
+              max_concurrency: 5,
+              boot_timeout: :timer.minutes(2),
+              shutdown_timeout: :timer.minutes(2),
+              idle_shutdown_after: :timer.minutes(2),
+              timeout: :timer.minutes(2),
+              log: :debug,
+              single_use: false,
+              backend: Application.get_env(:giraff, :end_game_backend)
+            }
+
+          parent ->
+            Logger.warning("Unexpected parent: #{inspect(parent)}")
+            nil
+        end,
         always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)},
         flame: {AI.SpeechRecognitionServer, []}
       )
@@ -54,18 +82,39 @@ defmodule Giraff.Application do
   end
 
   defp children(child_specs) do
-    is_parent? = is_nil(FLAME.Parent.get())
+    parent = FLAME.Parent.get()
+    is_parent? = is_nil(parent)
     is_flame? = !is_parent? || FLAME.Backend.impl() == FLAME.LocalBackend
 
     Logger.info("is_parent? #{is_parent?}")
     Logger.info("is_flame? #{is_flame?} (backend: #{FLAME.Backend.impl()})")
 
-    Enum.flat_map(child_specs, fn
-      {:always, spec} -> [spec]
-      {:parent, spec} when is_parent? == true -> [spec]
-      {:parent, _spec} when is_parent? == false -> []
-      {:flame, spec} when is_flame? == true -> [spec]
-      {:flame, _spec} when is_flame? == false -> []
+    child_specs
+    |> Enum.flat_map(fn
+      {:always, spec} when is_function(spec, 1) ->
+        [spec.(parent)]
+
+      {:always, spec} ->
+        [spec]
+
+      {:parent, spec} when is_function(spec, 1) and is_parent? ->
+        [spec.(parent)]
+
+      {:parent, spec} when is_parent? ->
+        [spec]
+
+      {:parent, _spec} ->
+        []
+
+      {:flame, spec} when is_function(spec, 1) and is_flame? ->
+        [spec.(parent)]
+
+      {:flame, spec} when is_flame? ->
+        [spec]
+
+      {:flame, _spec} ->
+        []
     end)
+    |> Enum.reject(&is_nil/1)
   end
 end

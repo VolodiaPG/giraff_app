@@ -33,13 +33,6 @@
         pathsToLink = ["/whisper"];
       };
     };
-    ffmpeg = nix2container.buildLayer {
-      copyToRoot = pkgs.buildEnv {
-        name = "ffmpeg";
-        paths = [pkgs.ffmpeg-headless];
-        pathsToLink = ["/bin"];
-      };
-    };
     prod_deps = nix2container.buildLayer {
       copyToRoot = pkgs.buildEnv {
         name = "root";
@@ -53,6 +46,9 @@
         paths = [self'.packages.prod];
         pathsToLink = ["/bin"];
       };
+      layers = [
+        prod_deps
+      ];
     };
     watchdog = nix2container.buildLayer {
       copyToRoot = pkgs.buildEnv {
@@ -65,29 +61,46 @@
         prod_deps
       ];
     };
+    base_layers = [
+      prod
+      prod_deps
+      watchdog
+    ];
+    ffmpeg = nix2container.buildLayer {
+      copyToRoot = pkgs.buildEnv {
+        name = "ffmpeg";
+        paths = [pkgs.ffmpeg-headless];
+        pathsToLink = ["/bin"];
+      };
+      layers = base_layers;
+    };
+    mimic = nix2container.buildLayer {
+      copyToRoot = pkgs.buildEnv {
+        name = "mimic";
+        paths = [pkgs.mimic];
+        pathsToLink = ["/bin"];
+      };
+      layers = base_layers;
+    };
   in {
     packages = {
       giraff_app = nix2container.buildImage {
         name = "ghcr.io/volodiapg/giraff";
         tag = "giraff_app";
         inherit config;
-        layers = [
-          prod
-          prod_deps
-          watchdog
-        ];
+        layers = base_layers;
       };
       giraff_speech = nix2container.buildImage {
         name = "ghcr.io/volodiapg/giraff";
         tag = "giraff_speech";
         inherit config;
-        layers = [
-          whisper
-          prod
-          prod_deps
-          ffmpeg
-          watchdog
-        ];
+        layers = base_layers ++ [whisper ffmpeg];
+      };
+      giraff_tts = nix2container.buildImage {
+        name = "ghcr.io/volodiapg/giraff";
+        tag = "giraff_tts";
+        inherit config;
+        layers = base_layers ++ [mimic];
       };
     };
   };

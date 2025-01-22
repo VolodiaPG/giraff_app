@@ -5,6 +5,7 @@ ghcr user:
     set -e
     just _ghcr {{user}} "giraff_app"&
     just _ghcr {{user}} "giraff_speech"&
+    just _ghcr {{user}} "giraff_tts"&
     wait
 
 _ghcr user image:

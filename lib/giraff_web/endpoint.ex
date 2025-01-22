@@ -20,9 +20,44 @@ defmodule GiraffWeb.Endpoint do
 
   def process_speech(conn, audio_data) do
     case FLAME.call(
-           Giraff.FFMpegRunner,
+           Giraff.SpeechToTextBackend,
            fn ->
-             AI.SpeechRecognition.transcribe_audio(audio_data)
+             case AI.SpeechRecognition.transcribe_audio(audio_data) do
+               {:ok, transcription} ->
+                 FLAME.cast(
+                   Giraff.TextToSpeechBackend,
+                   fn ->
+                     {:ok, file_path} = AI.TextToSpeech.speak(transcription)
+                     audio_blob = File.read!(file_path)
+
+                     FLAME.cast(
+                       Giraff.EndGameBackend,
+                       fn ->
+                         Logger.info("End game")
+
+                         temp_file =
+                           Path.join(
+                             System.tmp_dir(),
+                             "end_game_speech_#{:erlang.unique_integer([:positive])}.wav"
+                           )
+
+                         File.write!(temp_file, audio_blob)
+                         #  File.rm!(temp_file)
+                         :ok
+                       end,
+                       link: false
+                     )
+
+                     File.rm!(file_path)
+                   end,
+                   link: false
+                 )
+
+                 {:ok, transcription}
+
+               error ->
+                 error
+             end
            end
          ) do
       {:ok, transcription} ->
@@ -59,34 +94,6 @@ defmodule GiraffWeb.Endpoint do
             |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
         end
     end
-  end
-
-  post "/toto" do
-    {:ok, res, lsres} =
-      FLAME.call(Giraff.FFMpegRunner, fn ->
-        {res, 0} = System.cmd("uname", ["-a"])
-
-        :ok =
-          FLAME.cast(Giraff.TotoRunner, fn ->
-            {resping, 0} = System.cmd("ping", ["1.1.1.1", "-c", "4"])
-            Logger.debug("ping: #{resping}")
-            :ok
-          end)
-
-        {:ok, lsres} =
-          FLAME.call(Giraff.TotoRunner, fn ->
-            {res, 0} = System.cmd("ls", [])
-            {:ok, res}
-          end)
-
-        {:ok, res, lsres}
-      end)
-
-    tosend = Jason.encode!(%{"uname" => res, "ls" => lsres})
-
-    Logger.info("Got #{tosend}")
-
-    conn |> send_resp(200, tosend)
   end
 
   match _ do

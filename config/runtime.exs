@@ -29,8 +29,8 @@ if config_env() == :prod do
   config :flame, :backend, FLAME.GiraffBackend
 
   config :giraff,
-    ffmpeg_backend: {
-      FLAME.GiraffBackend,
+    speech_to_text_backend: {
+      FLAME.SpeechToTextBackend,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_speech",
@@ -43,13 +43,27 @@ if config_env() == :prod do
     }
 
   config :giraff,
-    toto_backend: {
-      FLAME.GiraffBackend,
+    text_to_speech_backend: {
+      FLAME.TextToSpeechBackend,
+      market: System.get_env("MARKET_URL"),
+      boot_timeout: 120_000,
+      image: "ghcr.io/volodiapg/giraff:giraff_tts",
+      millicpu: 1000,
+      memory_mb: 1024,
+      duration: 120_000,
+      latency_max_ms: 2000,
+      target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
+      from: System.get_env("GIRAFF_NODE_ID")
+    }
+
+  config :giraff,
+    end_game_backend: {
+      FLAME.EndGameBackend,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_app",
-      millicpu: 1000,
-      memory_mb: 1024,
+      millicpu: 100,
+      memory_mb: 128,
       duration: 120_000,
       latency_max_ms: 2000,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
@@ -62,7 +76,9 @@ if config_env() == :prod do
 else
   config :flame, :backend, FLAME.LocalBackend
 
-  config :giraff, ffmpeg_backend: FLAME.LocalBackend
+  config :giraff, speech_to_text_backend: FLAME.LocalBackend
 
-  config :giraff, toto_backend: FLAME.LocalBackend
+  config :giraff, text_to_speech_backend: FLAME.LocalBackend
+
+  config :giraff, end_game_backend: FLAME.LocalBackend
 end
