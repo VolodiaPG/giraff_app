@@ -30,42 +30,45 @@ if config_env() == :prod do
 
   config :giraff,
     speech_to_text_backend: {
-      FLAME.SpeechToTextBackend,
+      FLAME.GiraffBackend,
+      name: :speech_to_text,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_speech",
       millicpu: 1000,
       memory_mb: 2048,
       duration: 120_000,
-      latency_max_ms: 1000,
+      latency_max_ms: 15,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
       from: System.get_env("GIRAFF_NODE_ID")
     }
 
   config :giraff,
     text_to_speech_backend: {
-      FLAME.TextToSpeechBackend,
+      FLAME.GiraffBackend,
+      name: :text_to_speech,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_tts",
-      millicpu: 1000,
-      memory_mb: 1024,
+      millicpu: 256,
+      memory_mb: 512,
       duration: 120_000,
-      latency_max_ms: 2000,
+      latency_max_ms: 10000,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
       from: System.get_env("GIRAFF_NODE_ID")
     }
 
   config :giraff,
     end_game_backend: {
-      FLAME.EndGameBackend,
+      FLAME.GiraffBackend,
+      name: :end_game,
       market: System.get_env("MARKET_URL"),
       boot_timeout: 120_000,
       image: "ghcr.io/volodiapg/giraff:giraff_app",
-      millicpu: 100,
-      memory_mb: 128,
+      millicpu: 200,
+      memory_mb: 256,
       duration: 120_000,
-      latency_max_ms: 2000,
+      latency_max_ms: 10000,
       target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
       from: System.get_env("GIRAFF_NODE_ID")
     }

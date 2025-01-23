@@ -11,6 +11,7 @@ defmodule FLAME.GiraffBackend do
 
   @derive {Inspect,
            only: [
+             :name,
              :market,
              :init,
              :memory_mb,
@@ -31,7 +32,8 @@ defmodule FLAME.GiraffBackend do
              :function_id,
              :boot_timeout
            ]}
-  defstruct market: nil,
+  defstruct name: nil,
+            market: nil,
             init: %{},
             local_ip: nil,
             env: %{},
@@ -58,6 +60,7 @@ defmodule FLAME.GiraffBackend do
             runner_node_name: nil
 
   @valid_opts [
+    :name,
     :app,
     :image,
     :market,
@@ -104,19 +107,19 @@ defmodule FLAME.GiraffBackend do
 
     %GiraffBackend{} = state = Map.merge(default, Map.new(provided_opts))
 
-    for key <- [:image, :market, :latency_max_ms, :target_entrypoint, :from] do
+    for key <- [:image, :market, :latency_max_ms, :target_entrypoint, :from, :name] do
       unless Map.get(state, key) do
         raise ArgumentError, "missing :#{key} config for #{inspect(__MODULE__)}"
       end
     end
 
-    suffix = "#{rand_id(14)}"
+    suffix = "#{state.name}-#{rand_id(14)}"
     state = %GiraffBackend{state | livename: "flame-#{suffix}"}
     parent_ref = make_ref()
 
     encoded_parent =
       parent_ref
-      |> FLAME.Parent.new(self(), __MODULE__, state.livename, "PRIVATE_IP")
+      |> FLAME.Parent.new(self(), __MODULE__, state.name, "PRIVATE_IP")
       |> FLAME.Parent.encode()
 
     Logger.debug("Flame parent: #{encoded_parent}")

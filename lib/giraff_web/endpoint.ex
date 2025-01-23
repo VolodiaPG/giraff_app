@@ -24,34 +24,36 @@ defmodule GiraffWeb.Endpoint do
            fn ->
              case AI.SpeechRecognition.transcribe_audio(audio_data) do
                {:ok, transcription} ->
-                 FLAME.cast(
-                   Giraff.TextToSpeechBackend,
-                   fn ->
-                     {:ok, file_path} = AI.TextToSpeech.speak(transcription)
-                     audio_blob = File.read!(file_path)
+                 if String.ends_with?(transcription, "?") do
+                   FLAME.cast(
+                     Giraff.TextToSpeechBackend,
+                     fn ->
+                       {:ok, file_path} = AI.TextToSpeech.speak(transcription)
+                       audio_blob = File.read!(file_path)
 
-                     FLAME.cast(
-                       Giraff.EndGameBackend,
-                       fn ->
-                         Logger.info("End game")
+                       FLAME.cast(
+                         Giraff.EndGameBackend,
+                         fn ->
+                           Logger.info("End game")
 
-                         temp_file =
-                           Path.join(
-                             System.tmp_dir(),
-                             "end_game_speech_#{:erlang.unique_integer([:positive])}.wav"
-                           )
+                           temp_file =
+                             Path.join(
+                               System.tmp_dir(),
+                               "end_game_speech_#{:erlang.unique_integer([:positive])}.wav"
+                             )
 
-                         File.write!(temp_file, audio_blob)
-                         #  File.rm!(temp_file)
-                         :ok
-                       end,
-                       link: false
-                     )
+                           File.write!(temp_file, audio_blob)
+                           File.rm!(temp_file)
+                           :ok
+                         end,
+                         link: false
+                       )
 
-                     File.rm!(file_path)
-                   end,
-                   link: false
-                 )
+                       File.rm!(file_path)
+                     end,
+                     link: false
+                   )
+                 end
 
                  {:ok, transcription}
 

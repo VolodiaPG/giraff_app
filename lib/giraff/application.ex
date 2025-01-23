@@ -15,7 +15,7 @@ defmodule Giraff.Application do
         parent: {
           FLAME.Pool,
           name: Giraff.SpeechToTextBackend,
-          min: 0,
+          min: 1,
           max: 100,
           max_concurrency: 5,
           boot_timeout: :timer.minutes(1),
@@ -27,13 +27,15 @@ defmodule Giraff.Application do
           backend: Application.get_env(:giraff, :speech_to_text_backend)
         },
         flame: fn
-          val when val in [nil, %FLAME.Parent{backend_app: Giraff.SpeechToTextBackend}] ->
+          parent when is_nil(parent) or parent.node_base == :speech_to_text ->
+            Logger.info("Starting Giraff.TextToSpeechBackend")
+
             {
               FLAME.Pool,
               name: Giraff.TextToSpeechBackend,
               min: 0,
-              max: 10,
-              max_concurrency: 5,
+              max: 100,
+              max_concurrency: 25,
               boot_timeout: :timer.minutes(2),
               shutdown_timeout: :timer.minutes(2),
               idle_shutdown_after: :timer.minutes(2),
@@ -48,13 +50,15 @@ defmodule Giraff.Application do
             nil
         end,
         flame: fn
-          val when val in [nil, %FLAME.Parent{backend_app: Giraff.TextToSpeechBackend}] ->
+          parent when is_nil(parent) or parent.node_base == :text_to_speech ->
+            Logger.info("Starting Giraff.EndGameBackend")
+
             {
               FLAME.Pool,
               name: Giraff.EndGameBackend,
               min: 0,
-              max: 10,
-              max_concurrency: 5,
+              max: 100,
+              max_concurrency: 100,
               boot_timeout: :timer.minutes(2),
               shutdown_timeout: :timer.minutes(2),
               idle_shutdown_after: :timer.minutes(2),
@@ -69,7 +73,14 @@ defmodule Giraff.Application do
             nil
         end,
         always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)},
-        flame: {AI.SpeechRecognitionServer, []}
+        flame: fn
+          parent when is_nil(parent) or parent.node_base == :speech_to_text ->
+            {AI.SpeechRecognitionServer, []}
+
+          parent ->
+            Logger.warning("Unexpected parent: #{inspect(parent)}")
+            nil
+        end
       )
 
     # See https://hexdocs.pm/elixir/Supervisor.html
