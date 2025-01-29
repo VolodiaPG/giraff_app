@@ -34,6 +34,7 @@
       systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
       imports = [
         ./flake-modules
+        ./giraff.nix
       ];
       perSystem = {
         config,
@@ -67,13 +68,9 @@
           };
         };
 
-        packages = rec {
+        packages = {
           erlang = beam_minimal.interpreters.${erlang_nix_version opts.erlang_version};
           elixir = beamPackages.${elixir_nix_version opts.elixir_version};
-          default = prod;
-          prod = import ./giraff.nix {
-            inherit lib beamPackages elixir erlang opts pkgs;
-          };
         };
 
         apps = let

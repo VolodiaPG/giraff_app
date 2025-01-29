@@ -7,7 +7,7 @@ defmodule Giraff.MixProject do
       version: "0.1.1",
       elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
-      start_permanent: Mix.env() == :prod,
+      start_permanent: Mix.env() != :dev,
       aliases: aliases(),
       deps: deps()
       # releases: [
@@ -49,7 +49,8 @@ defmodule Giraff.MixProject do
       # for using JIT for models on the cpu/gpu
       {:exla, ">= 0.9.2"},
       {:deps_nix, "~> 2.0", only: :dev},
-      {:rustler, ">= 0.0.0", optional: true}
+      {:rustler, ">= 0.0.0", optional: true},
+      {:httpoison, "~> 2.0"}
     ]
   end
 

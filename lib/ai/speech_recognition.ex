@@ -27,6 +27,13 @@ defmodule AI.SpeechRecognition do
     end
   end
 
+  @spec transcribe_audio(
+          binary()
+          | maybe_improper_list(
+              binary() | maybe_improper_list(any(), binary() | []) | byte(),
+              binary() | []
+            )
+        ) :: {:error, :invalid_response} | {:ok, any()}
   def transcribe_audio(audio) do
     serving = AI.SpeechRecognitionServer.get_serving()
     temp_path = Path.join(System.tmp_dir!(), "audio_#{:erlang.unique_integer()}")

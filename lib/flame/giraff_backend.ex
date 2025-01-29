@@ -86,8 +86,6 @@ defmodule FLAME.GiraffBackend do
     conf = Application.get_env(:flame, __MODULE__) || []
     [_node_base, ip] = node() |> to_string() |> String.split("@")
 
-    # Logger.debug("node is #{node()}")
-
     default = %GiraffBackend{
       memory_mb: 256,
       millicpu: 1000,
@@ -113,13 +111,13 @@ defmodule FLAME.GiraffBackend do
       end
     end
 
-    suffix = "#{state.name}-#{rand_id(14)}"
-    state = %GiraffBackend{state | livename: "flame-#{suffix}"}
+    livename = "#{state.name}-#{rand_id(14)}"
+    state = %GiraffBackend{state | livename: livename}
     parent_ref = make_ref()
 
     encoded_parent =
       parent_ref
-      |> FLAME.Parent.new(self(), __MODULE__, state.name, "PRIVATE_IP")
+      |> FLAME.Parent.new(self(), __MODULE__, state.livename, "PRIVATE_IP")
       |> FLAME.Parent.encode()
 
     Logger.debug("Flame parent: #{encoded_parent}")
@@ -127,12 +125,10 @@ defmodule FLAME.GiraffBackend do
     new_env =
       %{
         "SECRET_KEY_BASE" => Application.get_env(:giraff, :secret_key_base),
-        "FLY_APP_NAME" => "flame",
-        "FLY_IMAGE_REF" => suffix,
-        "PHX_SERVER" => "false",
         "FLAME_PARENT" => encoded_parent,
         "MARKET_URL" => state.market,
-        "RELEASE_COOKIE" => Node.get_cookie()
+        "RELEASE_COOKIE" => Node.get_cookie(),
+        "MIX_ENV" => Application.get_env(:giraff, Giraff.Application)[:env]
       }
       |> Map.merge(state.env)
       |> then(fn env ->
@@ -291,10 +287,13 @@ defmodule FLAME.GiraffBackend do
               exit(:timeout)
           end
 
+        runner_node_name = node(remote_terminator_pid)
+        Logger.debug("Runner node name: #{runner_node_name}")
+
         new_state = %GiraffBackend{
           new_state
           | remote_terminator_pid: remote_terminator_pid,
-            runner_node_name: node(remote_terminator_pid)
+            runner_node_name: runner_node_name
         }
 
         Logger.debug(

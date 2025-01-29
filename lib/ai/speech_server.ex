@@ -8,7 +8,7 @@ defmodule AI.SpeechRecognitionServer do
   end
 
   def get_serving do
-    GenServer.call(__MODULE__, :get_serving)
+    GenServer.call(__MODULE__, :get_serving, :infinity)
   end
 
   @impl true

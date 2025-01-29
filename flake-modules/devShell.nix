@@ -11,6 +11,7 @@
       PATH_AUDIO = inputs'.giraff.packages.dataset_audio;
       BUMBLEBEE_CACHE_DIR = ".bumblebee_cache";
       WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}/whisper";
+      BERT_TWEETER_DIR = "${self'.packages.bert-tweeter}/bert-tweeter";
       packages =
         (with self'.packages; [
           elixir
@@ -24,6 +25,7 @@
             just
             nixd
             moreutils
+            lazydocker
             # Required at runtime
             ffmpeg-headless
             mimic

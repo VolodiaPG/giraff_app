@@ -18,55 +18,84 @@ defmodule GiraffWeb.Endpoint do
     send_resp(conn, 200, "")
   end
 
-  def process_speech(conn, audio_data) do
-    case FLAME.call(
-           Giraff.SpeechToTextBackend,
-           fn ->
-             case AI.SpeechRecognition.transcribe_audio(audio_data) do
-               {:ok, transcription} ->
-                 if String.ends_with?(transcription, "?") do
-                   FLAME.cast(
-                     Giraff.TextToSpeechBackend,
-                     fn ->
-                       {:ok, file_path} = AI.TextToSpeech.speak(transcription)
-                       audio_blob = File.read!(file_path)
+  defp after_speech_recognition(transcription) do
+    sentiment =
+      FLAME.call(Giraff.SentimentBackend, fn ->
+        sentiment = AI.SentimentRecognition.analyze_text(transcription)
+        Logger.info("Sentiment: #{inspect(sentiment)}")
+        sentiment
+      end)
 
-                       FLAME.cast(
-                         Giraff.EndGameBackend,
-                         fn ->
-                           Logger.info("End game")
+    FLAME.cast(
+      Giraff.EndGameBackend,
+      fn ->
+        Logger.info("End game with #{transcription}")
+      end,
+      link: false
+    )
 
-                           temp_file =
-                             Path.join(
-                               System.tmp_dir(),
-                               "end_game_speech_#{:erlang.unique_integer([:positive])}.wav"
-                             )
+    sentiment
+  end
 
-                           File.write!(temp_file, audio_blob)
-                           File.rm!(temp_file)
-                           :ok
-                         end,
-                         link: false
-                       )
-
-                       File.rm!(file_path)
-                     end,
-                     link: false
-                   )
-                 end
-
-                 {:ok, transcription}
-
-               error ->
-                 error
+  defp process_speech(conn, audio_data) do
+    with {:ok, transcription, sentiment} <-
+           FLAME.call(
+             Giraff.SpeechToTextBackend,
+             fn ->
+               with {:ok, transcription} <- AI.SpeechRecognition.transcribe_audio(audio_data),
+                    {:ok, sentiment} <- after_speech_recognition(transcription) do
+                 {:ok, transcription, sentiment}
+               else
+                 {:error, reason} ->
+                   Logger.error("Speech recognition failed: #{inspect(reason)}")
+                   {:error, :speech_recognition_failed}
+               end
              end
-           end
-         ) do
-      {:ok, transcription} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, Jason.encode!(%{transcription: transcription}))
+           ) do
+      case sentiment do
+        %{label: "POS"} ->
+          FLAME.cast(
+            Giraff.TextToSpeechBackend,
+            fn ->
+              {:ok, file_path} = AI.TextToSpeech.speak(transcription)
+              audio_blob = File.read!(file_path)
 
+              FLAME.cast(
+                Giraff.EndGameBackend,
+                fn ->
+                  Logger.info("End game")
+
+                  temp_file =
+                    Path.join(
+                      System.tmp_dir(),
+                      "end_game_speech_#{:erlang.unique_integer([:positive])}.wav"
+                    )
+
+                  File.write!(temp_file, audio_blob)
+                  File.rm!(temp_file)
+                  :ok
+                end,
+                link: false
+              )
+
+              File.rm!(file_path)
+            end,
+            link: false
+          )
+
+          conn
+          |> put_resp_content_type("application/json")
+          |> send_resp(
+            200,
+            Jason.encode!(%{transcription: transcription, sentiment: "Sentiment is positive"})
+          )
+
+        _ ->
+          conn
+          |> put_resp_content_type("application/json")
+          |> send_resp(200, Jason.encode!(%{transcription: transcription}))
+      end
+    else
       {:error, reason} ->
         conn
         |> put_resp_content_type("application/json")

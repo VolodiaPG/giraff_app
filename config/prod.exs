@@ -6,7 +6,6 @@ import Config
 # which you should run after static files are built and
 # before starting your production server.
 
-
 # Disable Swoosh Local Memory Storage
 # Do not print debug messages in production
 # config :logger, level: :debug
