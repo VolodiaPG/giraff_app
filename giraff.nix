@@ -1,7 +1,6 @@
 {
   perSystem = {
     self',
-    inputs',
     pkgs,
     lib,
     ...
@@ -40,8 +39,7 @@
     drv = mixEnv:
       beamPackages.mixRelease {
         inherit mixNixDeps mixEnv;
-        elixir = self'.packages.elixir;
-        erlang = self'.packages.erlang;
+        inherit (self'.packages) elixir erlang;
         pname = "giraff";
         version = "0.1.0";
         src = ./.;

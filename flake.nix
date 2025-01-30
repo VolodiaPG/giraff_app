@@ -7,7 +7,7 @@
     };
     flake-parts.url = "github:hercules-ci/flake-parts";
     giraff = {
-      url = "github:volodiapg/giraff";
+      url = "github:volodiapg/giraff/dynamicity";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix2container = {

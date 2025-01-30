@@ -275,15 +275,16 @@
         "srvos": "srvos"
       },
       "locked": {
-        "lastModified": 1730823288,
-        "narHash": "sha256-mZtn5CBUblwJSyuheu+XFBXOTMLuQ+bhJQBlXW2TLCY=",
+        "lastModified": 1738231963,
+        "narHash": "sha256-07RQHPWx+XA5giG2oSQjdDsSZN+KsGmC645/B2TVe3M=",
         "owner": "volodiapg",
         "repo": "giraff",
-        "rev": "f12055794b84779962ba2dde61c3f911b32aed5b",
+        "rev": "6be6ec507043b22c67c74944968ab9f43927ae48",
         "type": "github"
       },
       "original": {
         "owner": "volodiapg",
+        "ref": "dynamicity",
         "repo": "giraff",
         "type": "github"
       }

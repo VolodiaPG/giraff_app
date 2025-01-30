@@ -15,13 +15,13 @@ defmodule Giraff.Application do
 
     children =
       children(
+        flame_speech_to_text: AI.SpeechRecognitionServer,
+        flame_sentiment: AI.SentimentServer,
         parent: speech_to_text_backend,
         parent: text_to_speech_backend,
         flame_text_to_speech: end_game_backend,
         flame_speech_to_text: sentiment_backend,
-        flame_speech_to_text: end_game_backend,
-        flame_speech_to_text: AI.SpeechRecognitionServer,
-        flame_sentiment: AI.SentimentServer
+        flame_speech_to_text: end_game_backend
       )
 
     # See https://hexdocs.pm/elixir/Supervisor.html
@@ -34,19 +34,58 @@ defmodule Giraff.Application do
       Supervisor.start_link(
         [
           {Task.Supervisor, name: Giraff.TaskSup},
-          {DynamicSupervisor, name: Giraff.DynamicSup},
-          {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
+          {DynamicSupervisor, name: Giraff.DynamicSup}
         ],
         opts
       )
 
-    children
-    |> Enum.map(fn child_spec ->
-      Task.async(fn ->
-        Supervisor.start_child(sup, child_spec)
+    # Start async children
+    Enum.each(children, fn child_spec ->
+      Task.Supervisor.start_child(Giraff.TaskSup, fn ->
+        DynamicSupervisor.start_child(Giraff.DynamicSup, child_spec)
       end)
     end)
-    |> Task.await_many(:timer.minutes(1))
+
+    # Wait for all children to start
+    Task.start(fn ->
+      start_time = System.monotonic_time(:millisecond)
+      wait_interval = 100
+      timeout = :timer.minutes(1)
+
+      Stream.interval(wait_interval)
+      |> Stream.take_while(fn _ ->
+        elapsed = System.monotonic_time(:millisecond) - start_time
+
+        if elapsed > timeout do
+          Logger.warn("Timeout waiting for children to start")
+          false
+        else
+          case DynamicSupervisor.count_children(Giraff.DynamicSup) do
+            %{active: active, specs: specs} when active == specs and specs == length(children) ->
+              Logger.info("All #{specs} children started successfully, starting web server")
+
+              Supervisor.start_child(
+                sup,
+                {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
+              )
+
+              false
+
+            _ ->
+              true
+          end
+        end
+      end)
+      |> Stream.run()
+    end)
+
+    #   children
+    #   |> Enum.map(fn child_spec ->
+    #     Task.async(fn ->
+    #       Supervisor.start_child(sup, child_spec)
+    #     end)
+    #   end)
+    #   |> Task.await_many(:timer.minutes(1))
 
     {:ok, sup}
   end

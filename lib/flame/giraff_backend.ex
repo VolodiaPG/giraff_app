@@ -111,9 +111,11 @@ defmodule FLAME.GiraffBackend do
       end
     end
 
-    livename = "#{state.name}-#{rand_id(14)}"
+    livename = "#{state.name}-#{rand_id(8)}"
     state = %GiraffBackend{state | livename: livename}
     parent_ref = make_ref()
+
+    Logger.info("Creating parent for #{state.name} with livename #{state.livename}")
 
     encoded_parent =
       parent_ref
@@ -288,7 +290,7 @@ defmodule FLAME.GiraffBackend do
           end
 
         runner_node_name = node(remote_terminator_pid)
-        Logger.debug("Runner node name: #{runner_node_name}")
+        Logger.info("Runner node name: #{runner_node_name}")
 
         new_state = %GiraffBackend{
           new_state

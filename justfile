@@ -71,3 +71,14 @@ test_raw:
         -H "Content-Type: audio/wav" \
         --data-binary "@$PATH_AUDIO/1272-135031-0014.wav" \
         localhost:5000
+
+test_all:
+    #!/usr/bin/env bash
+    for file in $PATH_AUDIO/*.wav; do
+        echo "Testing $file"
+        curl -f \
+            -X POST \
+            -H "Content-Type: audio/wav" \
+            --data-binary "@$file" \
+            localhost:5000
+    done

@@ -35,20 +35,20 @@ backend_configs = %{
     name: :flame_speech_to_text,
     module: Giraff.SpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_speech",
-    millicpu: 1000,
-    memory_mb: 2048,
+    millicpu: 2000,
+    memory_mb: 2512,
     min: 1,
-    max_concurrency: 10,
+    max_concurrency: 4,
     latency_max_ms: 10000
   },
   sentiment_backend: %{
     name: :flame_sentiment,
     module: Giraff.SentimentBackend,
     image: "#{docker_registry}/giraff:giraff_sentiment",
-    millicpu: 1000,
-    memory_mb: 2048,
+    millicpu: 2000,
+    memory_mb: 2512,
     min: 1,
-    max_concurrency: 10,
+    max_concurrency: 4,
     latency_max_ms: 10000
   },
   text_to_speech_backend: %{
