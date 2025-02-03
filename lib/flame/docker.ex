@@ -64,7 +64,7 @@ defmodule FLAME.DockerBackend do
     [_node_base, ip] = node() |> to_string() |> String.split("@")
 
     default = %DockerBackend{
-      host: "http+unix://var/run/docker.sock",
+      host: "http+unix://%2Fvar%2Frun%2Fdocker.sock",
       memory_mb: 256,
       boot_timeout: 120_000,
       services: [],
@@ -97,6 +97,7 @@ defmodule FLAME.DockerBackend do
     new_env =
       %{
         "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
+        "OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION" => Application.get_env(:giraff, :otel_endpoint),
         "FLAME_PARENT" => encoded_parent,
         "RELEASE_COOKIE" => Node.get_cookie(),
         "NAME" => state.livename,
@@ -302,25 +303,6 @@ defmodule FLAME.DockerBackend do
 
       {:error, %HTTPoison.Error{reason: reason}} ->
         raise "failed POST #{url} with #{inspect(reason)} #{inspect(headers)}"
-    end
-  end
-
-  defp http_get!(url, opts) do
-    Keyword.validate!(opts, [:headers, :connect_timeout])
-
-    headers = Keyword.fetch!(opts, :headers)
-    connect_timeout = Keyword.fetch!(opts, :connect_timeout)
-
-    case HTTPoison.get(url, headers, recv_timeout: connect_timeout) do
-      {:ok, %HTTPoison.Response{status_code: status, body: response_body}}
-      when status in 200..299 ->
-        response_body
-
-      {:ok, %HTTPoison.Response{status_code: status, body: resp_body}} ->
-        raise "failed GET #{url} with #{inspect(status)}: #{inspect(resp_body)} #{inspect(headers)}"
-
-      {:error, %HTTPoison.Error{reason: reason}} ->
-        raise "failed GET #{url} with #{inspect(reason)} #{inspect(headers)}"
     end
   end
 end

@@ -48,6 +48,7 @@ run ip is_nix="mix":
         $BUILDPATH/bin/server
     elif [ "{{is_nix}}" = "docker" ]; then
         export MIX_ENV=docker
+        export OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION="http://{{ip}}:14317"
         mix release --overwrite
         _build/docker/rel/giraff/bin/giraff start
     else

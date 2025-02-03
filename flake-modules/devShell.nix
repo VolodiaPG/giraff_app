@@ -20,7 +20,7 @@
         ++ (with pkgs;
           [
             hex
-            elixir-ls
+            lexical
             statix
             just
             nixd

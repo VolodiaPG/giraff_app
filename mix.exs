@@ -9,12 +9,12 @@ defmodule Giraff.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() != :dev,
       aliases: aliases(),
-      deps: deps()
-      # releases: [
-      #     giraff: [
-      #         vm_args: "rel/vm.args"
-      #     ]
-      # ]
+      deps: deps(),
+      releases: [
+        giraff: [
+          applications: [opentelemetry_exporter: :permanent, opentelemetry: :temporary]
+        ]
+      ]
     ]
   end
 
@@ -50,7 +50,11 @@ defmodule Giraff.MixProject do
       {:exla, ">= 0.9.2"},
       {:deps_nix, "~> 2.0", only: :dev},
       {:rustler, ">= 0.0.0", optional: true},
-      {:httpoison, "~> 2.0"}
+      {:httpoison, "~> 2.0"},
+      # OpenTelemetry dependencies
+      {:opentelemetry, "~> 1.5.0"},
+      {:opentelemetry_api, "~> 1.4.0"},
+      {:opentelemetry_exporter, "~> 1.8.0"}
     ]
   end
 

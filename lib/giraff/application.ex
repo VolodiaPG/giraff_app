@@ -57,7 +57,7 @@ defmodule Giraff.Application do
         elapsed = System.monotonic_time(:millisecond) - start_time
 
         if elapsed > timeout do
-          Logger.warn("Timeout waiting for children to start")
+          Logger.warning("Timeout waiting for children to start")
           false
         else
           case DynamicSupervisor.count_children(Giraff.DynamicSup) do

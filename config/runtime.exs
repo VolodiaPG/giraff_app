@@ -19,6 +19,26 @@ IO.puts("Running in environment: #{System.get_env("MIX_ENV")} with config_env() 
 
 docker_registry = System.get_env("DOCKER_REGISTRY") || "ghcr.io/volodiapg"
 
+otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION") || "http://localhost:4317"
+
+config :giraff, otel_endpoint: otel_endpoint
+
+config :opentelemetry, :resource,
+  service: %{
+    name: System.get_env("NAME") || "giraff_application",
+    namespace: "giraff",
+    version: "0.0.1"
+  }
+
+config :opentelemetry, :processors,
+  otel_batch_processor: %{
+    exporter: {:opentelemetry_exporter, %{endpoints: [otel_endpoint]}}
+  }
+
+config :opentelemetry_exporter,
+  otlp_protocol: :grpc,
+  otlp_endpoint: otel_endpoint
+
 # Define common pool configurations for each backend type
 backend_configs = %{
   end_game_backend: %{
@@ -119,7 +139,7 @@ case config_env() do
       backend_config = {
         FLAME.DockerBackend,
         name: config.name,
-        host: "http+unix://%2Fvar%2Frun%2Fdocker.sock",
+        host: Application.get_env(:giraff, :docker_host),
         boot_timeout: 120_000,
         image: config.image,
         millicpu: config.millicpu,

@@ -20,6 +20,7 @@
 
 # Allow specific directories and their contents
 !lib/**/*.ex
+!lib/**/*.ex
 !test/**/*.ex
 !test/**/*.exs
 !config/**/*.exs
