@@ -250,13 +250,11 @@ defmodule FLAME.GiraffBackend do
 
         if res.status != 200 do
           Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
-
-          exit(:error)
+          {:error, "failed to start the giraff function on #{state.market} with: #{res}"}
+        else
+          Logger.debug("Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})")
+          {:ok, faas_ip, faas_port, faas_id, function_id}
         end
-
-        Logger.debug("Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})")
-
-        {:ok, faas_ip, faas_port, faas_id, function_id}
       end)
 
     if state.log,

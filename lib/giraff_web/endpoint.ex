@@ -113,8 +113,8 @@ defmodule GiraffWeb.Endpoint do
   end
 
   defp after_speech_recognition(transcription, span_ctx, parent_span_context) do
-    Ctx.attach(parent_span_context)
-    Tracer.set_current_span(span_ctx)
+    # Ctx.attach(parent_span_context)
+    # Tracer.set_current_span(span_ctx)
 
     Tracer.with_span "after_speech_recognition" do
       sentiment =
@@ -179,9 +179,30 @@ defmodule GiraffWeb.Endpoint do
   end
 
   post "/" do
+    traceparent = get_req_header(conn, "traceparent") |> List.first()
+    tracestate = get_req_header(conn, "tracestate") |> List.first()
+
+    Logger.info("Traceparent: #{inspect(traceparent)}, Tracestate: #{inspect(tracestate)}")
+
     Tracer.with_span "process post request on /" do
+      if traceparent do
+        OpenTelemetry.Ctx.set_value(:traceparent, traceparent)
+      end
+
+      if tracestate do
+        OpenTelemetry.Ctx.set_value(:tracestate, tracestate)
+      end
+
       span_ctx = Tracer.current_span_ctx()
       parent_span_context = Ctx.get_current()
+
+      OpenTelemetry.Span.tracestate(span_ctx)
+      OpenTelemetry.Span.trace_id(span_ctx)
+      OpenTelemetry.Span.span_id(span_ctx)
+
+      Logger.info(
+        "Tracestate: #{inspect(OpenTelemetry.Span.tracestate(span_ctx))}, Trace ID: #{inspect(OpenTelemetry.Span.trace_id(span_ctx))}, Span ID: #{inspect(OpenTelemetry.Span.span_id(span_ctx))}"
+      )
 
       try do
         case get_req_header(conn, "content-type") do
@@ -200,9 +221,12 @@ defmodule GiraffWeb.Endpoint do
               params ->
                 Logger.warning("Invalid params received: #{inspect(params)}")
 
-                Tracer.add_event("process_post_request_on_invalid_params", %{
-                  params: inspect(params)
-                })
+                event =
+                  OpenTelemetry.event("process_post_request_on_invalid_params",
+                    params: inspect(params)
+                  )
+
+                Tracer.add_events([event])
 
                 Tracer.set_attribute("params", inspect(params))
 
@@ -213,8 +237,13 @@ defmodule GiraffWeb.Endpoint do
         end
       rescue
         e ->
-          Tracer.add_event("request_processing_error", %{error: inspect(e)})
           Tracer.set_attribute("error", inspect(e))
+          Tracer.add_event("request_processing_error", %{error: inspect(e)})
+
+          Tracer.set_status(
+            OpenTelemetry.status(:error, "Request processing error: #{inspect(e)}")
+          )
+
           raise e
       end
     end

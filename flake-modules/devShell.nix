@@ -12,6 +12,7 @@
       BUMBLEBEE_CACHE_DIR = ".bumblebee_cache";
       WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}/whisper";
       BERT_TWEETER_DIR = "${self'.packages.bert-tweeter}/bert-tweeter";
+      ELIXIR_LS_DIR = "${pkgs.elixir-ls}";
       packages =
         (with self'.packages; [
           elixir
@@ -26,6 +27,7 @@
             nixd
             moreutils
             lazydocker
+            elixir-ls
             # Required at runtime
             ffmpeg-headless
             mimic
@@ -37,7 +39,11 @@
               CoreServices
             ])
           ));
-      inherit (config.checks.pre-commit-check) shellHook;
+      shellHook =
+        config.checks.pre-commit-check.shellHook
+        + ''
+          rm -rf .elixir-ls || true ; ln -s ${pkgs.elixir-ls} .elixir-ls
+        '';
     };
   };
 }

@@ -19,5 +19,6 @@
         "titleBar.inactiveBackground": "#48205d99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.remoteColor": "#48205D"
+    "peacock.remoteColor": "#48205D",
+    "elixirLS.languageServerOverridePath": "$ELIXIR_LS_DIR/lib",
 }

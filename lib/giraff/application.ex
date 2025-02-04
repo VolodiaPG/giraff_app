@@ -79,14 +79,6 @@ defmodule Giraff.Application do
       |> Stream.run()
     end)
 
-    #   children
-    #   |> Enum.map(fn child_spec ->
-    #     Task.async(fn ->
-    #       Supervisor.start_child(sup, child_spec)
-    #     end)
-    #   end)
-    #   |> Task.await_many(:timer.minutes(1))
-
     {:ok, sup}
   end
 
