@@ -49,7 +49,7 @@ backend_configs = %{
     memory_mb: 256,
     min: 0,
     max_concurrency: 100,
-    latency_max_ms: 10000
+    latency_max_ms: :timer.seconds(10)
   },
   speech_to_text_backend: %{
     name: :flame_speech_to_text,
@@ -57,9 +57,9 @@ backend_configs = %{
     image: "#{docker_registry}/giraff:giraff_speech",
     millicpu: 2000,
     memory_mb: 2512,
-    min: 1,
+    min: 0,
     max_concurrency: 4,
-    latency_max_ms: 10000
+    latency_max_ms: :timer.seconds(10)
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -67,9 +67,9 @@ backend_configs = %{
     image: "#{docker_registry}/giraff:giraff_sentiment",
     millicpu: 2000,
     memory_mb: 2512,
-    min: 1,
+    min: 0,
     max_concurrency: 4,
-    latency_max_ms: 10000
+    latency_max_ms: :timer.seconds(10)
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
@@ -79,7 +79,7 @@ backend_configs = %{
     memory_mb: 512,
     min: 0,
     max_concurrency: 25,
-    latency_max_ms: 10000
+    latency_max_ms: :timer.seconds(10)
   }
 }
 
@@ -88,13 +88,25 @@ common_pool_settings = [
   max: 100,
   boot_timeout: :timer.minutes(2),
   shutdown_timeout: :timer.minutes(2),
-  idle_shutdown_after: :timer.minutes(2),
+  idle_shutdown_after: :infinity,
   timeout: :timer.minutes(2),
   log: :debug,
   single_use: false
 ]
 
 IO.puts("config_env() #{config_env()}")
+
+paid_at =
+  case System.get_env("PAID_AT") do
+    nil ->
+      nil
+
+    paid_at_str ->
+      case DateTime.from_iso8601(paid_at_str) do
+        {:ok, datetime, _} -> datetime
+        {:error, _} -> nil
+      end
+  end
 
 case config_env() do
   :prod ->
@@ -108,11 +120,17 @@ case config_env() do
         FLAME.GiraffBackend,
         name: config.name,
         market: System.get_env("MARKET_URL"),
-        boot_timeout: 120_000,
+        boot_timeout: :timer.minutes(2),
         image: config.image,
         millicpu: config.millicpu,
         memory_mb: config.memory_mb,
-        duration: 120_000,
+        duration: fn ->
+          if paid_at do
+            DateTime.diff(paid_at, DateTime.utc_now(), :millisecond)
+          else
+            :timer.minutes(2)
+          end
+        end,
         latency_max_ms: config.latency_max_ms,
         target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
         from: System.get_env("GIRAFF_NODE_ID")

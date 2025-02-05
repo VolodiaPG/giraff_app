@@ -5,6 +5,9 @@ defmodule GiraffWeb.Endpoint do
   require OpenTelemetry.Tracer, as: Tracer
   require OpenTelemetry.Ctx, as: Ctx
 
+  # alias FLAME, as: FLAMEAlias
+  alias GiraffFLAME, as: FLAMEAlias
+
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
@@ -82,7 +85,7 @@ defmodule GiraffWeb.Endpoint do
       Tracer.set_attribute("transcription", transcription)
       Tracer.set_attribute("file_path", file_path)
 
-      FLAME.cast(
+      FLAMEAlias.cast(
         Giraff.EndGameBackend,
         fn -> handle_end_game_speech(audio_blob, span_ctx, parent_span_context) end,
         link: false
@@ -118,11 +121,11 @@ defmodule GiraffWeb.Endpoint do
 
     Tracer.with_span "after_speech_recognition" do
       sentiment =
-        FLAME.call(Giraff.SentimentBackend, fn ->
+        FLAMEAlias.call(Giraff.SentimentBackend, fn ->
           analyze_sentiment(transcription, span_ctx, parent_span_context)
         end)
 
-      FLAME.cast(
+      FLAMEAlias.cast(
         Giraff.EndGameBackend,
         fn -> handle_end_game(transcription, span_ctx, parent_span_context) end,
         link: false
@@ -140,7 +143,7 @@ defmodule GiraffWeb.Endpoint do
 
     Tracer.with_span "process_speech" do
       with {:ok, transcription, sentiment} <-
-             FLAME.call(
+             FLAMEAlias.call(
                Giraff.SpeechToTextBackend,
                fn -> perform_speech_to_text(audio_data, span_ctx, parent_span_context) end
              ) do
@@ -149,7 +152,7 @@ defmodule GiraffWeb.Endpoint do
 
         case sentiment do
           %{label: "POS"} ->
-            FLAME.cast(
+            FLAMEAlias.cast(
               Giraff.TextToSpeechBackend,
               fn -> handle_text_to_speech(transcription, span_ctx, parent_span_context) end,
               link: false
@@ -237,8 +240,7 @@ defmodule GiraffWeb.Endpoint do
         end
       rescue
         e ->
-          Tracer.set_attribute("error", inspect(e))
-          Tracer.add_event("request_processing_error", %{error: inspect(e)})
+          Tracer.record_exception(e)
 
           Tracer.set_status(
             OpenTelemetry.status(:error, "Request processing error: #{inspect(e)}")

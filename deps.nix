@@ -398,21 +398,22 @@
       drv;
 
     flame = let
-      version = "0.5.2";
+      version = "5e14488e62aa1d0d3d5c0753906e0dcc34035570";
       drv = buildMix {
         inherit version;
         name = "flame";
         appConfigPath = ./config;
 
-        src = fetchHex {
-          inherit version;
-          pkg = "flame";
-          sha256 = "82560ebef6ab3c277875493d0c93494740c930db0b1a3ff1a570eee9206cc6c0";
+        src = pkgs.fetchFromGitHub {
+          owner = "mentels";
+          repo = "flame";
+          rev = "5e14488e62aa1d0d3d5c0753906e0dcc34035570";
+          hash = "sha256-X+KJrdXqF+d4N0lKU+GYuD7KfY8B1Oe2bSgGZgBx+fA=";
         };
 
         beamDeps = [
-          castore
           jason
+          castore
         ];
       };
     in

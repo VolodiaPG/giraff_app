@@ -40,7 +40,10 @@ defmodule Giraff.MixProject do
     [
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.6"},
-      {:flame, ">= 0.2.0"},
+      {:flame,
+       git: "https://github.com/mentels/flame.git",
+       branch: "make-pool-allow-for-backend-init-error"},
+      # {:flame, "~> 0.5.2"},
       {:req, "~> 0.5.6"},
       {:ex_cmd, "~> 0.10.0"},
       {:plug, "~> 1.15"},

@@ -200,6 +200,13 @@ defmodule FLAME.GiraffBackend do
       with_elapsed_ms(fn ->
         env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> ["#{x}", "#{y}"] end)
 
+        duration =
+          if is_function(state.duration, 0) do
+            state.duration.()
+          else
+            state.duration
+          end
+
         res =
           Req.put!(
             "http://#{state.market}/api/function",
@@ -210,7 +217,7 @@ defmodule FLAME.GiraffBackend do
                 cpu: "#{state.millicpu} millicpu",
                 latencyMax: "#{state.latency_max_ms} ms",
                 replicas: state.max_replica,
-                duration: "#{state.duration} ms",
+                duration: "#{duration} ms",
                 functionImage: state.image,
                 functionLiveName: state.livename,
                 envVars: env,
@@ -232,7 +239,9 @@ defmodule FLAME.GiraffBackend do
             "failed to reserve the giraff function to #{state.market} with: #{res.body}"
           )
 
-          exit(:error)
+          exit(
+            {:error, "failed to reserve the giraff function to #{state.market} with: #{res.body}"}
+          )
         end
 
         faas_ip = Kernel.get_in(res.body, ["chosen", "ip"])
@@ -250,7 +259,7 @@ defmodule FLAME.GiraffBackend do
 
         if res.status != 200 do
           Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
-          {:error, "failed to start the giraff function on #{state.market} with: #{res}"}
+          exit({:error, "failed to start the giraff function on #{state.market} with: #{res}"})
         else
           Logger.debug("Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})")
           {:ok, faas_ip, faas_port, faas_id, function_id}

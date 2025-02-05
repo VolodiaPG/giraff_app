@@ -21,7 +21,8 @@ defmodule Giraff.Application do
         parent: text_to_speech_backend,
         flame_text_to_speech: end_game_backend,
         flame_speech_to_text: sentiment_backend,
-        flame_speech_to_text: end_game_backend
+        flame_speech_to_text: end_game_backend,
+        always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
       )
 
     # See https://hexdocs.pm/elixir/Supervisor.html
@@ -47,37 +48,37 @@ defmodule Giraff.Application do
     end)
 
     # Wait for all children to start
-    Task.start(fn ->
-      start_time = System.monotonic_time(:millisecond)
-      wait_interval = 100
-      timeout = :timer.minutes(1)
+    # Task.start(fn ->
+    #   start_time = System.monotonic_time(:millisecond)
+    #   wait_interval = 100
+    #   timeout = :timer.minutes(1)
 
-      Stream.interval(wait_interval)
-      |> Stream.take_while(fn _ ->
-        elapsed = System.monotonic_time(:millisecond) - start_time
+    #   Stream.interval(wait_interval)
+    #   |> Stream.take_while(fn _ ->
+    #     elapsed = System.monotonic_time(:millisecond) - start_time
 
-        if elapsed > timeout do
-          Logger.warning("Timeout waiting for children to start")
-          false
-        else
-          case DynamicSupervisor.count_children(Giraff.DynamicSup) do
-            %{active: active, specs: specs} when active == specs and specs == length(children) ->
-              Logger.info("All #{specs} children started successfully, starting web server")
+    #     if elapsed > timeout do
+    #       Logger.warning("Timeout waiting for children to start")
+    #       false
+    #     else
+    #       case DynamicSupervisor.count_children(Giraff.DynamicSup) do
+    #         %{active: active, specs: specs} when active == specs and specs == length(children) ->
+    #           Logger.info("All #{specs} children started successfully, starting web server")
 
-              Supervisor.start_child(
-                sup,
-                {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
-              )
+    #           Supervisor.start_child(
+    #             sup,
+    #             {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
+    #           )
 
-              false
+    #           false
 
-            _ ->
-              true
-          end
-        end
-      end)
-      |> Stream.run()
-    end)
+    #         _ ->
+    #           true
+    #       end
+    #     end
+    #   end)
+    #   |> Stream.run()
+    # end)
 
     {:ok, sup}
   end
