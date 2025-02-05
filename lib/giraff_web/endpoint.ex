@@ -6,7 +6,7 @@ defmodule GiraffWeb.Endpoint do
   require OpenTelemetry.Ctx, as: Ctx
 
   # alias FLAME, as: FLAMEAlias
-  alias GiraffFLAME, as: FLAMEAlias
+  alias FLAMERetry, as: FLAMEAlias
 
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
@@ -87,8 +87,7 @@ defmodule GiraffWeb.Endpoint do
 
       FLAMEAlias.cast(
         Giraff.EndGameBackend,
-        fn -> handle_end_game_speech(audio_blob, span_ctx, parent_span_context) end,
-        link: false
+        fn -> handle_end_game_speech(audio_blob, span_ctx, parent_span_context) end
       )
 
       File.rm!(file_path)
@@ -127,8 +126,7 @@ defmodule GiraffWeb.Endpoint do
 
       FLAMEAlias.cast(
         Giraff.EndGameBackend,
-        fn -> handle_end_game(transcription, span_ctx, parent_span_context) end,
-        link: false
+        fn -> handle_end_game(transcription, span_ctx, parent_span_context) end
       )
 
       Tracer.set_attribute("transcription", transcription)
@@ -145,7 +143,15 @@ defmodule GiraffWeb.Endpoint do
       with {:ok, transcription, sentiment} <-
              FLAMEAlias.call(
                Giraff.SpeechToTextBackend,
-               fn -> perform_speech_to_text(audio_data, span_ctx, parent_span_context) end
+               fn -> perform_speech_to_text(audio_data, span_ctx, parent_span_context) end,
+               retries: 1,
+               fallback_function: fn ->
+                 Logger.warning("Speech recognition could not be called, using degraded function")
+
+                 transcription = "Hello, how are you?"
+                 sentiment = %{label: "POS"}
+                 {:ok, transcription, sentiment}
+               end
              ) do
         Tracer.set_attribute("transcription", transcription)
         Tracer.set_attribute("sentiment", inspect(sentiment))
@@ -154,8 +160,7 @@ defmodule GiraffWeb.Endpoint do
           %{label: "POS"} ->
             FLAMEAlias.cast(
               Giraff.TextToSpeechBackend,
-              fn -> handle_text_to_speech(transcription, span_ctx, parent_span_context) end,
-              link: false
+              fn -> handle_text_to_speech(transcription, span_ctx, parent_span_context) end
             )
 
             conn

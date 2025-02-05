@@ -13,13 +13,20 @@ defmodule FLAMERetry do
   @base_delay 500
   @exponential_factor 2
 
+  @valid_opts [
+    :retries,
+    :base_delay,
+    :exponential_factor,
+    :fallback_function
+  ]
+
   @doc """
   Makes a synchronous call to a FLAME pool with the given function and options.
 
   ## Parameters
     * `pool` - The FLAME pool to call
     * `func` - The function to execute in the pool
-    * `opts` - Optional keyword list of options to pass to FLAME. The process is not linked to the caller, this is forced.
+    * `opts` - Optional keyword list of options to pass to FLAME.
 
   ## Options
     * Any other options supported by FLAME.call
@@ -30,9 +37,10 @@ defmodule FLAMERetry do
   """
   @spec call(atom(), (-> any()), keyword()) :: any()
   def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+    opts = get_opts(opts)
     opts = Keyword.put_new(opts, :link, false)
     func = fn -> FLAME.Pool.call(pool, func, opts) end
-    exponential_retry!(func)
+    exponential_retry!(func, opts)
   end
 
   @doc """
@@ -41,7 +49,7 @@ defmodule FLAMERetry do
   ## Parameters
     * `pool` - The FLAME pool to cast to
     * `func` - The function to execute in the pool
-    * `opts` - Optional keyword list of options to pass to FLAME. The process is not linked to the caller, this is forced.
+    * `opts` - Optional keyword list of options to pass to FLAME.
 
   ## Options
     * Any other options supported by FLAME.cast
@@ -50,23 +58,39 @@ defmodule FLAMERetry do
       FLAME.Pool.cast(MyPool, fn -> do_work() end)
       FLAME.Pool.cast(MyPool, fn -> do_work() end, link: true)
   """
+
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+    opts = get_opts(opts)
     opts = Keyword.put_new(opts, :link, false)
     func = fn -> FLAME.Pool.cast(pool, func, opts) end
-    exponential_retry!(func)
+    exponential_retry!(func, opts)
   end
 
-  defp exponential_retry!(func, retries \\ @retries, base_delay \\ @base_delay) do
-    {:ok, result} = do_retry(func, retries, base_delay)
+  defp get_opts(opts) do
+    opts = Keyword.validate!(opts, @valid_opts)
+    opts = Keyword.put_new(opts, :retries, @retries)
+    opts = Keyword.put_new(opts, :base_delay, @base_delay)
+    opts = Keyword.put_new(opts, :exponential_factor, @exponential_factor)
+    opts = Keyword.put_new(opts, :fallback_function, nil)
+    opts
+  end
+
+  defp exponential_retry!(func, opts) do
+    {:ok, result} = do_retry(func, opts[:retries], opts[:base_delay], opts)
     result
   end
 
-  defp do_retry(func, 0, _delay) do
-    {:ok, func.()}
+  defp do_retry(func, 0, _delay, opts) do
+    case opts[:fallback_function] do
+      nil -> {:ok, func.()}
+      fallback when is_function(fallback) -> {:ok, fallback.()}
+    end
   end
 
-  defp do_retry(func, retries, delay) do
+  defp do_retry(func, retries, delay, opts) do
+    exponential_factor = opts[:exponential_factor]
+
     try do
       {:ok, func.()}
     catch
@@ -74,7 +98,7 @@ defmodule FLAMERetry do
         Logger.error("Retry attempt failed, #{retries} attempts remaining.")
 
         Process.sleep(delay)
-        do_retry(func, retries - 1, delay * @exponential_factor + :rand.uniform(delay))
+        do_retry(func, retries - 1, delay * exponential_factor + :rand.uniform(delay), opts)
     end
   end
 end
