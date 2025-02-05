@@ -9,7 +9,7 @@ defmodule FLAMERetry do
   require Logger
   alias FLAME
 
-  @retries 10
+  @retries 3
   @base_delay 500
   @exponential_factor 2
 
@@ -77,7 +77,8 @@ defmodule FLAMERetry do
   end
 
   defp exponential_retry!(func, opts) do
-    {:ok, result} = do_retry(func, opts[:retries], opts[:base_delay], opts)
+    # Increase by 1 to account for the initial call
+    {:ok, result} = do_retry(func, opts[:retries] + 1, opts[:base_delay], opts)
     result
   end
 

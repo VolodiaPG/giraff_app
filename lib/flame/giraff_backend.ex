@@ -235,9 +235,11 @@ defmodule FLAME.GiraffBackend do
           )
 
         if res.status != 200 do
-          Logger.error(
-            "failed to reserve the giraff function to #{state.market} with: #{res.body}"
-          )
+          if state.log,
+            do:
+              Logger.error(
+                "failed to reserve the giraff function to #{state.market} with: #{res.body}"
+              )
 
           exit(
             {:error, "failed to reserve the giraff function to #{state.market} with: #{res.body}"}
@@ -258,10 +260,18 @@ defmodule FLAME.GiraffBackend do
           )
 
         if res.status != 200 do
-          Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
+          if state.log,
+            do:
+              Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
+
           exit({:error, "failed to start the giraff function on #{state.market} with: #{res}"})
         else
-          Logger.debug("Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})")
+          if state.log,
+            do:
+              Logger.debug(
+                "Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})"
+              )
+
           {:ok, faas_ip, faas_port, faas_id, function_id}
         end
       end)
@@ -292,12 +302,16 @@ defmodule FLAME.GiraffBackend do
               remote_terminator_pid
           after
             remaining_connect_window ->
-              Logger.error("failed to connect to Giraff machine within #{state.boot_timeout} ms")
+              if state.log,
+                do:
+                  Logger.error(
+                    "failed to connect to Giraff machine within #{state.boot_timeout} ms"
+                  )
+
               exit(:timeout)
           end
 
         runner_node_name = node(remote_terminator_pid)
-        Logger.info("Runner node name: #{runner_node_name}")
 
         new_state = %GiraffBackend{
           new_state
@@ -305,9 +319,11 @@ defmodule FLAME.GiraffBackend do
             runner_node_name: runner_node_name
         }
 
-        Logger.debug(
-          "successed to connect to Giraff machine #{new_state.runner_node_name} within #{state.boot_timeout} ms"
-        )
+        if state.log,
+          do:
+            Logger.debug(
+              "successed to connect to Giraff machine #{new_state.runner_node_name} within #{state.boot_timeout} ms"
+            )
 
         {:ok, remote_terminator_pid, new_state}
 

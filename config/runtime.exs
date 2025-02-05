@@ -90,7 +90,8 @@ common_pool_settings = [
   shutdown_timeout: :timer.minutes(2),
   idle_shutdown_after: :infinity,
   timeout: :timer.minutes(2),
-  log: :debug,
+  # log: :debug
+  log: false,
   single_use: false
 ]
 

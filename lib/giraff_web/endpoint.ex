@@ -115,8 +115,8 @@ defmodule GiraffWeb.Endpoint do
   end
 
   defp after_speech_recognition(transcription, span_ctx, parent_span_context) do
-    # Ctx.attach(parent_span_context)
-    # Tracer.set_current_span(span_ctx)
+    Ctx.attach(parent_span_context)
+    Tracer.set_current_span(span_ctx)
 
     Tracer.with_span "after_speech_recognition" do
       sentiment =
@@ -135,6 +135,25 @@ defmodule GiraffWeb.Endpoint do
     end
   end
 
+  defp degraded_speech_recognition(_audio_data, span_ctx, parent_span_context) do
+    Ctx.attach(parent_span_context)
+    Tracer.set_current_span(span_ctx)
+
+    Tracer.with_span "degraded_speech_recognition" do
+      Logger.warning("Speech recognition could not be called, using degraded function")
+
+      transcription = "Hello, how are you?"
+      sentiment = %{label: "POS"}
+
+      Tracer.add_event("degraded_speech_recognition",
+        transcription: transcription,
+        sentiment: inspect(sentiment)
+      )
+
+      {:ok, transcription, sentiment}
+    end
+  end
+
   defp process_speech(conn, audio_data, span_ctx, parent_span_context) do
     Ctx.attach(parent_span_context)
     Tracer.set_current_span(span_ctx)
@@ -146,11 +165,7 @@ defmodule GiraffWeb.Endpoint do
                fn -> perform_speech_to_text(audio_data, span_ctx, parent_span_context) end,
                retries: 1,
                fallback_function: fn ->
-                 Logger.warning("Speech recognition could not be called, using degraded function")
-
-                 transcription = "Hello, how are you?"
-                 sentiment = %{label: "POS"}
-                 {:ok, transcription, sentiment}
+                 degraded_speech_recognition(audio_data, span_ctx, parent_span_context)
                end
              ) do
         Tracer.set_attribute("transcription", transcription)
@@ -160,7 +175,13 @@ defmodule GiraffWeb.Endpoint do
           %{label: "POS"} ->
             FLAMEAlias.cast(
               Giraff.TextToSpeechBackend,
-              fn -> handle_text_to_speech(transcription, span_ctx, parent_span_context) end
+              fn -> handle_text_to_speech(transcription, span_ctx, parent_span_context) end,
+              retries: 10,
+              base_delay: 1000,
+              exponential_factor: 2,
+              fallback_function: fn ->
+                Tracer.set_status(OpenTelemetry.status(:error, "Text to speech failed"))
+              end
             )
 
             conn
