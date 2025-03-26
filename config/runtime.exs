@@ -19,7 +19,9 @@ IO.puts("Running in environment: #{System.get_env("MIX_ENV")} with config_env() 
 
 docker_registry = System.get_env("DOCKER_REGISTRY") || "ghcr.io/volodiapg"
 
-otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION") || "http://localhost:4317"
+otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION")
+
+IO.puts("Using otel at #{otel_endpoint}")
 
 config :giraff, otel_endpoint: otel_endpoint
 
@@ -49,7 +51,7 @@ backend_configs = %{
     memory_mb: 256,
     min: 0,
     max_concurrency: 100,
-    latency_max_ms: :timer.seconds(10)
+    latency_max_ms: 10
   },
   speech_to_text_backend: %{
     name: :flame_speech_to_text,
@@ -58,8 +60,18 @@ backend_configs = %{
     millicpu: 2000,
     memory_mb: 2512,
     min: 0,
-    max_concurrency: 4,
-    latency_max_ms: :timer.seconds(10)
+    max_concurrency: 2,
+    latency_max_ms: 75
+  },
+  vosk_speech_to_text_backend: %{
+    name: :flame_vosk_speech_to_text,
+    module: Giraff.VoskSpeechToTextBackend,
+    image: "#{docker_registry}/giraff:giraff_vosk_speech",
+    millicpu: 200,
+    memory_mb: 512,
+    min: 0,
+    max_concurrency: 10,
+    latency_max_ms: 150
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -68,8 +80,8 @@ backend_configs = %{
     millicpu: 2000,
     memory_mb: 2512,
     min: 0,
-    max_concurrency: 4,
-    latency_max_ms: :timer.seconds(10)
+    max_concurrency: 2,
+    latency_max_ms: 20
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
@@ -78,7 +90,7 @@ backend_configs = %{
     millicpu: 256,
     memory_mb: 512,
     min: 0,
-    max_concurrency: 25,
+    max_concurrency: 10,
     latency_max_ms: :timer.seconds(10)
   }
 }
@@ -109,6 +121,58 @@ paid_at =
       end
   end
 
+sla =
+  case System.get_env("SLA") do
+    nil ->
+      nil
+
+    sla_str ->
+      Jason.decode!(sla_str)
+  end
+
+# paid_at = DateTime.utc_now()
+
+# sla =
+#   ~s({"id":"6cd8c0e4-67b2-4a05-9a9b-2e367c44b131","memory":"256.0 MB","cpu":"200.0 m","latencyMax":"0.008 s","duration":"120.0 s","replicas":1,"functionImage":"ghcr.io/volodiapg/giraff:giraff_app","functionLiveName":"app-i0-c200-m256-l8-a6-r59692-d120000","dataFlow":[{"from":{"dataSource":"d132ee95-5368-4bc8-9dfd-227eb77da5fc"},"to":"thisFunction"}],"envVars":[["RELEASE_COOKIE","77744409"],["MARKET_URL","131.254.100.55:30008"]],"envProcess":"server","inputMaxSize":"0.000128 MB"})
+
+# sla = Jason.decode!(sla)
+
+get_duration = fn ->
+  default_duration = :timer.minutes(2)
+
+  case {paid_at, sla} do
+    {nil, nil} ->
+      default_duration
+
+    {paid_at, %{"duration" => duration_str}} ->
+      case String.trim_trailing(duration_str, " s") do
+        ^duration_str ->
+          default_duration
+
+        duration_num_str ->
+          to_add = Kernel.trunc(String.to_float(duration_num_str))
+
+          duration =
+            DateTime.diff(
+              DateTime.add(paid_at, to_add, :second),
+              DateTime.utc_now(),
+              :millisecond
+            )
+
+          if duration < 0 do
+            raise "Duration is negative"
+          end
+
+          IO.puts("Duration: #{duration}")
+
+          duration
+      end
+
+    _ ->
+      default_duration
+  end
+end
+
 case config_env() do
   :prod ->
     config :flame, :terminator, log: :debug
@@ -119,19 +183,13 @@ case config_env() do
 
       backend_config = {
         FLAME.GiraffBackend,
+        duration: get_duration,
         name: config.name,
         market: System.get_env("MARKET_URL"),
         boot_timeout: :timer.minutes(2),
         image: config.image,
         millicpu: config.millicpu,
         memory_mb: config.memory_mb,
-        duration: fn ->
-          if paid_at do
-            DateTime.diff(paid_at, DateTime.utc_now(), :millisecond)
-          else
-            :timer.minutes(2)
-          end
-        end,
         latency_max_ms: config.latency_max_ms,
         target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
         from: System.get_env("GIRAFF_NODE_ID")

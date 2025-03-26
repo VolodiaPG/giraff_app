@@ -234,45 +234,33 @@ defmodule FLAME.GiraffBackend do
             }
           )
 
-        if res.status != 200 do
-          if state.log,
-            do:
-              Logger.error(
-                "failed to reserve the giraff function to #{state.market} with: #{res.body}"
+        case res do
+          %{
+            status: 200,
+            body: %{
+              "chosen" => %{"ip" => faas_ip, "bid" => %{"nodeId" => faas_id}, "port" => faas_port},
+              "sla" => %{"id" => function_id}
+            }
+          } ->
+            res =
+              Req.post!(
+                "http://#{state.market}/api/function/#{function_id}",
+                connect_options: [timeout: state.boot_timeout],
+                receive_timeout: state.boot_timeout,
+                body: nil
               )
 
-          exit(
+            case res do
+              %{status: 200} ->
+                {:ok, faas_ip, faas_port, faas_id, function_id}
+
+              _ ->
+                {:error,
+                 "failed to run the paid giraff function to #{state.market} with: #{res.body}"}
+            end
+
+          _ ->
             {:error, "failed to reserve the giraff function to #{state.market} with: #{res.body}"}
-          )
-        end
-
-        faas_ip = Kernel.get_in(res.body, ["chosen", "ip"])
-        faas_id = Kernel.get_in(res.body, ["chosen", "bid", "nodeId"])
-        faas_port = Kernel.get_in(res.body, ["chosen", "port"])
-        function_id = Kernel.get_in(res.body, ["sla", "id"])
-
-        res =
-          Req.post!(
-            "http://#{state.market}/api/function/#{function_id}",
-            connect_options: [timeout: state.boot_timeout],
-            receive_timeout: state.boot_timeout,
-            body: nil
-          )
-
-        if res.status != 200 do
-          if state.log,
-            do:
-              Logger.error("failed to start the giraff function on #{state.market} with: #{res}")
-
-          exit({:error, "failed to start the giraff function on #{state.market} with: #{res}"})
-        else
-          if state.log,
-            do:
-              Logger.debug(
-                "Started (async) #{function_id} on #{faas_id} (#{faas_ip}:#{faas_port})"
-              )
-
-          {:ok, faas_ip, faas_port, faas_id, function_id}
         end
       end)
 
@@ -326,6 +314,9 @@ defmodule FLAME.GiraffBackend do
             )
 
         {:ok, remote_terminator_pid, new_state}
+
+      {:error, reason} ->
+        {:error, reason}
 
       other ->
         {:error, other}

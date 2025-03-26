@@ -54,6 +54,8 @@ defmodule Giraff.MixProject do
       {:deps_nix, "~> 2.0", only: :dev},
       {:rustler, ">= 0.0.0", optional: true},
       {:httpoison, "~> 2.0"},
+      {:erlport, "~>0.11.0"},
+      {:poolboy, "~> 1.5"},
       # OpenTelemetry dependencies
       {:opentelemetry, "~> 1.5.0"},
       {:opentelemetry_api, "~> 1.4.0"},

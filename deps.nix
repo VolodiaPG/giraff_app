@@ -329,6 +329,21 @@
     in
       drv;
 
+    erlport = let
+      version = "0.11.0";
+      drv = buildRebar3 {
+        inherit version;
+        name = "erlport";
+
+        src = fetchHex {
+          inherit version;
+          pkg = "erlport";
+          sha256 = "8eb136ccaf3948d329b8d1c3278ad2e17e2a7319801bc4cc2da6db278204eee4";
+        };
+      };
+    in
+      drv;
+
     ex_cmd = let
       version = "0.10.0";
       drv = buildMix {
@@ -873,6 +888,21 @@
         beamDeps = [
           nx
         ];
+      };
+    in
+      drv;
+
+    poolboy = let
+      version = "1.5.2";
+      drv = buildRebar3 {
+        inherit version;
+        name = "poolboy";
+
+        src = fetchHex {
+          inherit version;
+          pkg = "poolboy";
+          sha256 = "dad79704ce5440f3d5a3681c8590b9dc25d1a561e8f5a9c995281012860901e3";
+        };
       };
     in
       drv;

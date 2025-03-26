@@ -16,3 +16,44 @@ Ready to run in production? Please [check our deployment guides](https://hexdocs
   * Docs: https://hexdocs.pm/phoenix
   * Forum: https://elixirforum.com/c/phoenix-forum
   * Source: https://github.com/phoenixframework/phoenix
+
+
+## Digrams
+
+```elixir
+# config/runtime.exs
+config :giraff,
+       :speech_to_text_backend,
+       {FLAME.Pool,
+        [
+          name: Giraff.SpeechToTextBackend,
+          min: 1, max: 100, max_concurrency: 4,
+          single_use: false,
+          backend: {
+            FLAME.GiraffBackend,
+            image: "ghcr.io/...", millicpu: 1000, memory_mb: 1024
+          }
+        ]
+       }
+
+# application.ex
+children =
+      children(
+        ...,
+        parent: @speech_to_text_backend_config,
+        ...
+      )
+{:ok, sup} = Supervisor.start_link(children, ...)
+
+# endpoint.ex
+def my_function(param) do
+  "I'm a giraff, #{param}"
+end
+
+post "/" do
+ param = conn.body_params["param"]
+ result = FLAME.call(Giraff.SpeechToTextBackend, fn -> my_function(param) end)
+ send_resp(conn, 200, result)
+end
+```
+

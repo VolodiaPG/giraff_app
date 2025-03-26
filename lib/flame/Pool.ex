@@ -4,6 +4,8 @@ defmodule FLAMERetry do
   for making calls to FLAME pools.
 
   Intercepts the error raised by FLAME when a checkout fails; when the pool fails to spawn a new runner in the pool to serve the call.
+
+  Always fallback mode can be set by setting the :always_fallback Application env
   """
 
   require Logger
@@ -12,6 +14,8 @@ defmodule FLAMERetry do
   @retries 3
   @base_delay 500
   @exponential_factor 2
+
+  @always_fallback Application.compile_env(:giraff, :always_fallback, false)
 
   @valid_opts [
     :retries,
@@ -76,16 +80,31 @@ defmodule FLAMERetry do
     opts
   end
 
-  defp exponential_retry!(func, opts) do
+  defp exponential_retry!(func, opts) when @always_fallback == false do
     # Increase by 1 to account for the initial call
-    {:ok, result} = do_retry(func, opts[:retries] + 1, opts[:base_delay], opts)
-    result
+    do_retry(func, opts[:retries] + 1, opts[:base_delay], opts)
+  end
+
+  defp exponential_retry!(func, opts) when @always_fallback == true do
+    Logger.info("Always fallback mode is enabled")
+
+    case opts[:fallback_function] do
+      nil ->
+        do_retry(func, opts[:retries] + 1, opts[:base_delay], opts)
+
+      fallback when is_function(fallback, 0) ->
+        fallback.()
+
+      _ ->
+        raise("Fallback is not a function/0")
+    end
   end
 
   defp do_retry(func, 0, _delay, opts) do
     case opts[:fallback_function] do
-      nil -> {:ok, func.()}
-      fallback when is_function(fallback) -> {:ok, fallback.()}
+      nil -> func.()
+      fallback when is_function(fallback, 0) -> fallback.()
+      _ -> raise("Fallback is not a function/0")
     end
   end
 
@@ -93,13 +112,18 @@ defmodule FLAMERetry do
     exponential_factor = opts[:exponential_factor]
 
     try do
-      {:ok, func.()}
+      func.()
     catch
-      :exit, _ ->
-        Logger.error("Retry attempt failed, #{retries} attempts remaining.")
+      :exit, {{:exit, {{:shutdown, err}, _}}, _} ->
+        Logger.error(
+          "Retry attempt failed, #{retries} attempts remaining. Error: #{inspect(err)}"
+        )
 
         Process.sleep(delay)
         do_retry(func, retries - 1, delay * exponential_factor + :rand.uniform(delay), opts)
+
+      :exit, other ->
+        raise(other)
     end
   end
 end

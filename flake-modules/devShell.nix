@@ -13,10 +13,13 @@
       WHISPER_TINY_DIR = "${self'.packages.whisper-tiny}/whisper";
       BERT_TWEETER_DIR = "${self'.packages.bert-tweeter}/bert-tweeter";
       ELIXIR_LS_DIR = "${pkgs.elixir-ls}";
+      VOSK_PATH = "${self'.packages.voskModel}/vosk";
       packages =
         (with self'.packages; [
           elixir
           erlang
+          # For local running
+          python-vosk
         ])
         ++ (with pkgs;
           [
@@ -42,7 +45,15 @@
       shellHook =
         config.checks.pre-commit-check.shellHook
         + ''
-          rm -rf .elixir-ls || true ; ln -s ${pkgs.elixir-ls} .elixir-ls
+          mkdir -p .venv/bin
+          ln -s ${self'.packages.python-vosk}/bin/vosk .venv/bin/vosk
+          VOSK_PATH="priv/python/model"
+          rm -rf "$VOSK_PATH" || true
+          ln -s "${self'.packages.voskModel}" "$VOSK_PATH"
+          VOSK_PATH="model"
+          rm -rf "$VOSK_PATH" || true
+          ln -s "${self'.packages.voskModel}" "$VOSK_PATH"
+
         '';
     };
   };

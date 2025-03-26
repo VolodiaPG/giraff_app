@@ -12,16 +12,23 @@ defmodule Giraff.Application do
     speech_to_text_backend = Application.fetch_env!(:giraff, :speech_to_text_backend)
     sentiment_backend = Application.fetch_env!(:giraff, :sentiment_backend)
     text_to_speech_backend = Application.fetch_env!(:giraff, :text_to_speech_backend)
+    vosk_speech_to_text_backend = Application.fetch_env!(:giraff, :vosk_speech_to_text_backend)
 
     children =
       children(
+        always: {Task.Supervisor, name: Giraff.TaskSup},
+        always: {DynamicSupervisor, name: Giraff.DynamicSup},
+        flame_vosk_speech_to_text: :poolboy.child_spec(:worker, vosk_poolboy_config()),
         flame_speech_to_text: AI.SpeechRecognitionServer,
         flame_sentiment: AI.SentimentServer,
         parent: speech_to_text_backend,
         parent: text_to_speech_backend,
+        parent: vosk_speech_to_text_backend,
         flame_text_to_speech: end_game_backend,
         flame_speech_to_text: sentiment_backend,
         flame_speech_to_text: end_game_backend,
+        flame_vosk_speech_to_text: sentiment_backend,
+        flame_vosk_speech_to_text: end_game_backend,
         always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
       )
 
@@ -30,22 +37,23 @@ defmodule Giraff.Application do
     opts = [strategy: :one_for_one, name: Giraff.Supervisor]
     config = Application.fetch_env!(:giraff, Giraff.Application)
     Logger.info("Starting #{config[:env]} application...")
+    {:ok, sup} = Supervisor.start_link(children, opts)
 
-    {:ok, sup} =
-      Supervisor.start_link(
-        [
-          {Task.Supervisor, name: Giraff.TaskSup},
-          {DynamicSupervisor, name: Giraff.DynamicSup}
-        ],
-        opts
-      )
+    # {:ok, sup} =
+    #   Supervisor.start_link(
+    #     [
+    #       {Task.Supervisor, name: Giraff.TaskSup},
+    #       {DynamicSupervisor, name: Giraff.DynamicSup}
+    #     ],
+    #     opts
+    #   )
 
-    # Start async children
-    Enum.each(children, fn child_spec ->
-      Task.Supervisor.start_child(Giraff.TaskSup, fn ->
-        DynamicSupervisor.start_child(Giraff.DynamicSup, child_spec)
-      end)
-    end)
+    # # Start async children
+    # Enum.each(children, fn child_spec ->
+    #   Task.Supervisor.start_child(Giraff.TaskSup, fn ->
+    #     DynamicSupervisor.start_child(Giraff.DynamicSup, child_spec)
+    #   end)
+    # end)
 
     # Wait for all children to start
     # Task.start(fn ->
@@ -129,5 +137,16 @@ defmodule Giraff.Application do
     end)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
+  end
+
+  defp vosk_poolboy_config do
+    [
+      {:name, {:local, :python_worker}},
+      {:worker_module, AI.Vosk},
+      # Pool size
+      {:size, 5},
+      # How many workers can be started above the size
+      {:max_overflow, 5}
+    ]
   end
 end

@@ -13,3 +13,7 @@ config :giraff, text_to_speech_backend: FLAME.LocalBackend
 config :giraff, end_game_backend: FLAME.LocalBackend
 
 config :giraff, sentiment_backend: FLAME.LocalBackend
+
+config :giraff, vosk_speech_to_text_backend: FLAME.LocalBackend
+
+# config :giraff, always_fallback: true

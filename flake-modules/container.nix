@@ -15,6 +15,7 @@
           "exec_timeout=100s"
           "WHISPER_TINY_DIR=/whisper"
           "BERT_TWEETER_DIR=/bert-tweeter"
+          "VOSK_PATH=/vosk"
           "MIX_ENV=${mix_env}"
           "http_upstream_url=http://127.0.0.1:5000"
           "ready_path=http://127.0.0.1:5000/health"
@@ -42,6 +43,21 @@
           paths = [self'.packages.bert-tweeter];
           pathsToLink = ["/bert-tweeter"];
         };
+      };
+      vosk = nix2container.buildLayer {
+        copyToRoot = pkgs.buildEnv {
+          name = "vosk";
+          paths = [self'.packages.voskModel];
+          pathsToLink = ["/vosk"];
+        };
+      };
+      voskPython = nix2container.buildLayer {
+        copyToRoot = pkgs.buildEnv {
+          name = "vosk-python";
+          paths = [self'.packages.python-vosk];
+          pathsToLink = ["/bin"];
+        };
+        layers = base_layers;
       };
       prod_deps = nix2container.buildLayer {
         copyToRoot = pkgs.buildEnv {
@@ -92,6 +108,13 @@
         };
         layers = base_layers;
       };
+      bash = nix2container.buildLayer {
+        copyToRoot = pkgs.buildEnv {
+          name = "bash";
+          paths = [pkgs.bashInteractive pkgs.coreutils];
+          pathsToLink = ["/bin"];
+        };
+      };
     in {
       "${mix_env}_giraff_app" = nix2container.buildImage {
         name = "ghcr.io/volodiapg/giraff";
@@ -116,6 +139,12 @@
         tag = "giraff_sentiment";
         inherit config;
         layers = base_layers ++ [sentiment];
+      };
+      "${mix_env}_giraff_vosk_speech" = nix2container.buildImage {
+        name = "ghcr.io/volodiapg/giraff";
+        tag = "giraff_vosk_speech";
+        inherit config;
+        layers = base_layers ++ [voskPython vosk bash];
       };
     };
   in {
