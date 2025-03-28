@@ -23,6 +23,6 @@ config :opentelemetry,
 config :nx, default_backend: EXLA.Backend
 
 config :logger,
-  backends: [{Giraff.OtelLoggerBackend, []}, {Logger.Backends.Console, []}]
+  backends: [{Giraff.Logger.OpenTelemetryBackend, []}, {Logger.Backends.Console, []}]
 
 import_config "#{config_env()}.exs"
