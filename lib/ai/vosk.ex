@@ -3,7 +3,7 @@ defmodule AI.Vosk do
 
   require Logger
 
-  @timeout 10_000
+  @timeout 120_000
 
   def start_link() do
     GenServer.start_link(__MODULE__, nil)
@@ -13,17 +13,12 @@ defmodule AI.Vosk do
     GenServer.start_link(__MODULE__, nil)
   end
 
-  @spec message(atom() | pid() | {atom(), any()} | {:via, atom(), any()}, any()) :: any()
-  def message(pid, my_string) do
-    GenServer.call(pid, {:hello, my_string})
-  end
-
   def call(my_string) do
     Task.async(fn ->
       :poolboy.transaction(
         :python_worker,
         fn pid ->
-          GenServer.call(pid, {:handle, my_string})
+          GenServer.call(pid, {:handle, my_string}, :infinity)
         end,
         @timeout
       )

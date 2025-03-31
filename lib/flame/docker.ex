@@ -164,15 +164,6 @@ defmodule FLAME.DockerBackend do
   def remote_boot(%DockerBackend{parent_ref: parent_ref} = state) do
     {resp, req_connect_time} =
       with_elapsed_ms(fn ->
-        # http_post!("#{state.host}/v1.43/images/create?fromImage=#{state.image}",
-        #   connect_timeout: state.boot_timeout,
-        #   content_type: "text/plain",
-        #   headers: [
-        #     {"Content-Type", "text/plain"}
-        #   ],
-        #   body: ""
-        # )
-
         env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> "#{x}=#{y}" end)
 
         port = get_opened_port()
@@ -245,13 +236,6 @@ defmodule FLAME.DockerBackend do
             | runner_instance_id: container_id,
               runner_private_ip: private_runner_ip
           }
-
-        # if state.log,
-        #   do:
-        #     Logger.log(
-        #       state.log,
-        #       "#{inspect(__MODULE__)} remote node is #{new_state.runner_node_name}"
-        #     )
 
         remote_terminator_pid =
           receive do

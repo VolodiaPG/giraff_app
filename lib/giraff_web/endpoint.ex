@@ -47,12 +47,11 @@ defmodule GiraffWeb.Endpoint do
   end
 
   defp perform_speech_to_text(audio_data) do
-    Tracer.with_span "speech_recognition" do
+    Tracer.with_span "speech_to_text" do
       with {:ok, transcription} <- speech_recognition(audio_data),
            {:ok, sentiment} <-
              after_speech_recognition(transcription) do
-        Tracer.set_attribute("transcription", transcription)
-        Tracer.set_attribute("sentiment", sentiment)
+        Logger.debug("Got transcription and sentiment: #{transcription}, #{inspect(sentiment)}")
         {:ok, transcription, sentiment}
       else
         {:error, reason} ->
@@ -108,11 +107,13 @@ defmodule GiraffWeb.Endpoint do
           end,
           retries: 1,
           fallback_function: fn ->
-            Tracer.add_event("after_speech_recognition failed, using degraded result",
-              transcription: transcription
-            )
+            Tracer.with_span "after_speech_recognition.degraded" do
+              Tracer.add_event("after_speech_recognition failed, using degraded result",
+                transcription: transcription
+              )
 
-            {:ok, %{label: "NEG"}}
+              {:ok, %{label: "NEG"}}
+            end
           end
         )
 
@@ -129,7 +130,7 @@ defmodule GiraffWeb.Endpoint do
   end
 
   defp degraded_speech_recognition(audio_data) do
-    Tracer.with_span "degraded_speech_recognition" do
+    Tracer.with_span "speech_recognition.degraded" do
       Logger.warning("Speech recognition could not be called, using degraded function")
       Tracer.add_event("using_degraded_speech_recognition", %{})
 
@@ -203,7 +204,8 @@ defmodule GiraffWeb.Endpoint do
         end
       else
         {:error, reason} ->
-          Tracer.add_event("process_speech.error", reason: reason)
+          Tracer.set_status(OpenTelemetry.status(:error, "Process speech error:
+              #{inspect(reason)}"))
 
           conn
           |> put_resp_content_type("application/json")
@@ -213,52 +215,51 @@ defmodule GiraffWeb.Endpoint do
   end
 
   post "/" do
-    # traceparent = get_req_header(conn, "traceparent") |> List.first()
-    # tracestate = get_req_header(conn, "tracestate") |> List.first()
+    Tracer.with_span "start_processing_requests" do
+      Logger.metadata(span_ctx: Tracer.current_span_ctx())
 
-    # Logger.info("Traceparent: #{inspect(traceparent)}, Tracestate: #{inspect(tracestate)}")
+      try do
+        case get_req_header(conn, "content-type") do
+          ["audio/" <> _] ->
+            # Handle raw audio file upload
+            {:ok, body, _conn} = read_body(conn)
+            process_speech(conn, body)
 
-    # Tracer.with_span "process post request on /" do
+          _ ->
+            # Handle multipart form uploads
+            case conn.body_params do
+              %{"file" => %Plug.Upload{path: path}} ->
+                data = File.read!(path)
+                process_speech(conn, data)
 
-    try do
-      case get_req_header(conn, "content-type") do
-        ["audio/" <> _] ->
-          # Handle raw audio file upload
-          {:ok, body, _conn} = read_body(conn)
-          process_speech(conn, body)
+              params ->
+                Logger.warning("Invalid params received: #{inspect(params)}")
+                Tracer.add_event("invalid_params_received", %{params: inspect(params)})
 
-        _ ->
-          # Handle multipart form uploads
-          case conn.body_params do
-            %{"file" => %Plug.Upload{path: path}} ->
-              data = File.read!(path)
-              process_speech(conn, data)
+                event =
+                  OpenTelemetry.event("process_post_request_on_invalid_params",
+                    params: inspect(params)
+                  )
 
-            params ->
-              Logger.warning("Invalid params received: #{inspect(params)}")
-              Tracer.add_event("invalid_params_received", %{params: inspect(params)})
+                Tracer.add_events([event])
 
-              event =
-                OpenTelemetry.event("process_post_request_on_invalid_params",
-                  params: inspect(params)
-                )
+                Tracer.set_attribute("params", inspect(params))
 
-              Tracer.add_events([event])
+                conn
+                |> put_resp_content_type("application/json")
+                |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
+            end
+        end
+      rescue
+        e ->
+          Tracer.record_exception(e, __STACKTRACE__)
 
-              Tracer.set_attribute("params", inspect(params))
+          Tracer.set_status(
+            OpenTelemetry.status(:error, "Request processing error: #{inspect(e)}")
+          )
 
-              conn
-              |> put_resp_content_type("application/json")
-              |> send_resp(400, Jason.encode!(%{error: "Missing audio file"}))
-          end
+          reraise(e, __STACKTRACE__)
       end
-    rescue
-      e ->
-        Tracer.record_exception(e)
-
-        Tracer.set_status(OpenTelemetry.status(:error, "Request processing error: #{inspect(e)}"))
-
-        raise e
     end
   end
 

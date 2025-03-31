@@ -30,23 +30,7 @@ defmodule FLAMETracing do
   """
   @spec call(atom(), (-> any()), keyword()) :: any()
   def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-    span_ctx = Tracer.current_span_ctx()
-    parent_span_context = Ctx.get_current()
-
-    Tracer.add_event("FLAME.call init", %{
-      pool: inspect(pool),
-      func: inspect(func),
-      opts: inspect(opts)
-    })
-
-    func = fn ->
-      Ctx.attach(parent_span_context)
-      Tracer.set_current_span(span_ctx)
-
-      func.()
-    end
-
-    FLAME.call(pool, func, opts)
+    process_function(&FLAME.call/3, pool, func, opts)
   end
 
   @doc """
@@ -67,17 +51,40 @@ defmodule FLAMETracing do
 
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+    process_function(&FLAME.cast/3, pool, func, opts)
+  end
+
+  defp process_function(dispatch_function, pool, func, opts \\ [])
+       when is_atom(pool) and is_function(func) do
     span_ctx = Tracer.current_span_ctx()
     parent_span_context = Ctx.get_current()
 
     func = fn ->
       Ctx.attach(parent_span_context)
       Tracer.set_current_span(span_ctx)
+      Logger.metadata(span_ctx: span_ctx)
 
       Tracer.set_attribute("sla", System.get_env("SLA"))
       func.()
     end
 
-    FLAME.cast(pool, func, opts)
+    fallback_function =
+      case opts[:fallback_function] do
+        nil ->
+          nil
+
+        fallback_function ->
+          fn ->
+            Ctx.attach(parent_span_context)
+            Tracer.set_current_span(span_ctx)
+            Logger.metadata(span_ctx: span_ctx)
+
+            Tracer.set_attribute("sla", System.get_env("SLA"))
+            fallback_function.()
+          end
+      end
+
+    updated_opts = Keyword.put(opts, :fallback_function, fallback_function)
+    dispatch_function.(pool, func, updated_opts)
   end
 end

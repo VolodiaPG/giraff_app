@@ -14,6 +14,7 @@ defmodule FLAMERetry do
   @retries 3
   @base_delay 500
   @exponential_factor 2
+  @default_timeout :timer.minutes(2)
 
   @always_fallback Application.compile_env(:giraff, :always_fallback, false)
 
@@ -21,7 +22,8 @@ defmodule FLAMERetry do
     :retries,
     :base_delay,
     :exponential_factor,
-    :fallback_function
+    :fallback_function,
+    :timeout
   ]
 
   @doc """
@@ -76,6 +78,7 @@ defmodule FLAMERetry do
     opts = Keyword.put_new(opts, :retries, @retries)
     opts = Keyword.put_new(opts, :base_delay, @base_delay)
     opts = Keyword.put_new(opts, :exponential_factor, @exponential_factor)
+    opts = Keyword.put_new(opts, :timeout, @default_timeout)
     opts = Keyword.put_new(opts, :fallback_function, nil)
     opts
   end
@@ -123,7 +126,7 @@ defmodule FLAMERetry do
         do_retry(func, retries - 1, delay * exponential_factor + :rand.uniform(delay), opts)
 
       :exit, other ->
-        raise(other)
+        raise("Unexpected exit: #{inspect(other)}")
     end
   end
 end

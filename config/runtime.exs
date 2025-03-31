@@ -58,7 +58,7 @@ backend_configs = %{
     module: Giraff.SpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_speech",
     millicpu: 2000,
-    memory_mb: 2512,
+    memory_mb: 3000,
     min: 0,
     max_concurrency: 2,
     latency_max_ms: 75
@@ -67,10 +67,10 @@ backend_configs = %{
     name: :flame_vosk_speech_to_text,
     module: Giraff.VoskSpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_vosk_speech",
-    millicpu: 200,
-    memory_mb: 512,
+    millicpu: 500,
+    memory_mb: 1024,
     min: 0,
-    max_concurrency: 10,
+    max_concurrency: 5,
     latency_max_ms: 150
   },
   sentiment_backend: %{
@@ -90,7 +90,7 @@ backend_configs = %{
     millicpu: 256,
     memory_mb: 512,
     min: 0,
-    max_concurrency: 10,
+    max_concurrency: 5,
     latency_max_ms: :timer.seconds(10)
   }
 }
