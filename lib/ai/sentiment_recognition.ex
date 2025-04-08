@@ -6,9 +6,6 @@ defmodule AI.SentimentRecognition do
     with {:ok, model_info} <- Bumblebee.load_model({:local, System.get_env("BERT_TWEETER_DIR")}),
          {:ok, tokenizer} <-
            Bumblebee.load_tokenizer({:local, System.get_env("BERT_TWEETER_DIR")}),
-         # with {:ok, model_info} <-
-         #        Bumblebee.load_model({:hf, "finiteautomata/bertweet-base-sentiment-analysis"}),
-         #      {:ok, tokenizer} <- Bumblebee.load_tokenizer({:hf, "vinai/bertweet-base"}),
          serving <-
            Bumblebee.Text.text_classification(
              model_info,

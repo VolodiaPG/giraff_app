@@ -413,17 +413,17 @@
       drv;
 
     flame = let
-      version = "5e14488e62aa1d0d3d5c0753906e0dcc34035570";
+      version = "bc4a950f4544002ba9717e9adcd629d34f3eb98c";
       drv = buildMix {
         inherit version;
         name = "flame";
         appConfigPath = ./config;
 
         src = pkgs.fetchFromGitHub {
-          owner = "mentels";
+          owner = "volodiapg";
           repo = "flame";
-          rev = "5e14488e62aa1d0d3d5c0753906e0dcc34035570";
-          hash = "sha256-X+KJrdXqF+d4N0lKU+GYuD7KfY8B1Oe2bSgGZgBx+fA=";
+          rev = "bc4a950f4544002ba9717e9adcd629d34f3eb98c";
+          hash = "sha256-a4g0K2CL5IEArNzoMXcv5SYII9t85FQMHpIeT0AtEwU=";
         };
 
         beamDeps = [

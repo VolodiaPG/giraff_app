@@ -21,14 +21,21 @@ defmodule Giraff.Application do
         flame_vosk_speech_to_text: :poolboy.child_spec(:worker, vosk_poolboy_config()),
         flame_speech_to_text: AI.SpeechRecognitionServer,
         flame_sentiment: AI.SentimentServer,
-        parent: speech_to_text_backend,
-        parent: text_to_speech_backend,
-        parent: vosk_speech_to_text_backend,
-        flame_text_to_speech: end_game_backend,
-        flame_speech_to_text: sentiment_backend,
-        flame_speech_to_text: end_game_backend,
-        flame_vosk_speech_to_text: sentiment_backend,
-        flame_vosk_speech_to_text: end_game_backend,
+        always: speech_to_text_backend,
+        always: text_to_speech_backend,
+        always: vosk_speech_to_text_backend,
+        always: sentiment_backend,
+        always: end_game_backend,
+        # parent: speech_to_text_backend,
+        #         parent: text_to_speech_backend,
+        #         parent: vosk_speech_to_text_backend,
+        #         parent: sentiment_backend,
+        # flame_text_to_speech: end_game_backend,
+        # flame_speech_to_text: sentiment_backend,
+        # flame_speech_to_text: end_game_backend,
+        # flame_vosk_speech_to_text: sentiment_backend,
+        # flame_vosk_speech_to_text: end_game_backend,
+        # flame_sentiment: end_game_backend,
         always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
       )
 
@@ -144,9 +151,9 @@ defmodule Giraff.Application do
       {:name, {:local, :python_worker}},
       {:worker_module, AI.Vosk},
       # Pool size
-      {:size, 5},
+      {:size, 3},
       # How many workers can be started above the size
-      {:max_overflow, 5}
+      {:max_overflow, 2}
     ]
   end
 end

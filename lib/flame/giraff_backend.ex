@@ -255,12 +255,11 @@ defmodule FLAME.GiraffBackend do
                 {:ok, faas_ip, faas_port, faas_id, function_id}
 
               _ ->
-                {:error,
-                 "failed to run the paid giraff function to #{state.market} with: #{res.body}"}
+                raise "failed to run the paid giraff function to #{state.market} with: #{res.body}"
             end
 
           _ ->
-            {:error, "failed to reserve the giraff function to #{state.market} with: #{res.body}"}
+            raise "failed to reserve the giraff function to #{state.market} with: #{res.body}"
         end
       end)
 

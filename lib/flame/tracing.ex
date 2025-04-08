@@ -54,15 +54,16 @@ defmodule FLAMETracing do
     process_function(&FLAME.cast/3, pool, func, opts)
   end
 
-  defp process_function(dispatch_function, pool, func, opts \\ [])
+  defp process_function(dispatch_function, pool, func, opts)
        when is_atom(pool) and is_function(func) do
     span_ctx = Tracer.current_span_ctx()
     parent_span_context = Ctx.get_current()
 
     func = fn ->
-      Ctx.attach(parent_span_context)
+      # Ctx.attach(parent_span_context)
       Tracer.set_current_span(span_ctx)
       Logger.metadata(span_ctx: span_ctx)
+      Logger.debug("hello, trying to #{inspect(func)}")
 
       Tracer.set_attribute("sla", System.get_env("SLA"))
       func.()
@@ -75,7 +76,7 @@ defmodule FLAMETracing do
 
         fallback_function ->
           fn ->
-            Ctx.attach(parent_span_context)
+            # Ctx.attach(parent_span_context)
             Tracer.set_current_span(span_ctx)
             Logger.metadata(span_ctx: span_ctx)
 

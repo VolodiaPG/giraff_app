@@ -47,41 +47,41 @@ backend_configs = %{
     name: :flame_end_game,
     module: Giraff.EndGameBackend,
     image: "#{docker_registry}/giraff:giraff_app",
-    millicpu: 200,
-    memory_mb: 256,
+    millicpu: 100,
+    memory_mb: 128,
     min: 0,
-    max_concurrency: 100,
-    latency_max_ms: 10
+    max_concurrency: 50,
+    latency_max_ms: 1_000
   },
   speech_to_text_backend: %{
     name: :flame_speech_to_text,
     module: Giraff.SpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_speech",
     millicpu: 2000,
-    memory_mb: 3000,
+    memory_mb: 1500,
     min: 0,
     max_concurrency: 2,
-    latency_max_ms: 75
+    latency_max_ms: 50
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
     module: Giraff.VoskSpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_vosk_speech",
     millicpu: 500,
-    memory_mb: 1024,
+    memory_mb: 1500,
     min: 0,
     max_concurrency: 5,
-    latency_max_ms: 150
+    latency_max_ms: 200
   },
   sentiment_backend: %{
     name: :flame_sentiment,
     module: Giraff.SentimentBackend,
     image: "#{docker_registry}/giraff:giraff_sentiment",
-    millicpu: 2000,
-    memory_mb: 2512,
+    millicpu: 1000,
+    memory_mb: 2048,
     min: 0,
     max_concurrency: 2,
-    latency_max_ms: 20
+    latency_max_ms: 100
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
@@ -90,8 +90,8 @@ backend_configs = %{
     millicpu: 256,
     memory_mb: 512,
     min: 0,
-    max_concurrency: 5,
-    latency_max_ms: :timer.seconds(10)
+    max_concurrency: 2,
+    latency_max_ms: 1_000
   }
 }
 
@@ -103,7 +103,7 @@ common_pool_settings = [
   idle_shutdown_after: :infinity,
   timeout: :timer.minutes(2),
   # log: :debug
-  log: false,
+  log: :debug,
   single_use: false
 ]
 
