@@ -6,9 +6,10 @@ defmodule Giraff.SpeechToText do
   require Logger
   require OpenTelemetry.Tracer, as: Tracer
 
-  def speech_to_text(audio) when is_binary(audio) do
+  def speech_to_text(audio, after_callback \\ nil) when is_binary(audio) do
     with transcription = {:ok, text} <- AI.SpeechRecognition.transcribe_audio(audio) do
       Logger.debug("Got transcription #{inspect(text)}")
+      if after_callback, do: after_callback.(transcription)
       transcription
     else
       {:error, reason} ->
@@ -27,7 +28,7 @@ defmodule Giraff.SpeechToText do
 
     [
       Giraff.SpeechToTextBackend,
-      fn -> __MODULE__.speech_to_text(audio) end,
+      fn -> __MODULE__.speech_to_text(audio, Keyword.get(opts, :after_callback)) end,
       opts
     ]
   end

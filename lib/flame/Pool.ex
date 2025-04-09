@@ -17,15 +17,24 @@ defmodule FLAMERetry do
   @retries 3
   @base_delay 500
   @exponential_factor 2
-  @default_timeout :timer.seconds(60)
-  @valid_opts [
-    :retries,
-    :base_delay,
-    :exponential_factor,
-    :fallback_function,
-    :caller_pid,
-    :timeout
-  ]
+  @timeout :timer.seconds(60)
+  # @valid_opts [
+  #   :retries,
+  #   :base_delay,
+  #   :exponential_factor,
+  #   :fallback_function,
+  #   :caller_pid,
+  #   :timeout,
+  #   :otel_span
+  # ]
+
+  defstruct parent_span_ctx: nil,
+            span_ctx: nil,
+            fallback_function: nil,
+            base_delay: @base_delay,
+            retries: @retries,
+            exponential_factor: @exponential_factor,
+            timeout: @timeout
 
   @doc """
   Makes a synchronous call to a FLAME pool with the given function and options.
@@ -42,12 +51,13 @@ defmodule FLAMERetry do
       FLAME.Pool.call(MyPool, fn -> do_work() end)
       FLAME.Pool.call(MyPool, fn -> do_work() end, link: false)
   """
-  @spec call(atom(), (-> any()), keyword()) :: any()
-  def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-    opts = get_opts(opts)
-    func = fn -> FLAME.Pool.call(pool, func, opts) end
-    exponential_retry!(func, opts)
-  end
+
+  # @spec call(atom(), (-> any()), keyword()) :: any()
+  # def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+  #   opts = get_opts(opts)
+  #   func = fn -> FLAME.Pool.call(pool, func, opts) end
+  #   exponential_retry!(func, opts)
+  # end
 
   @doc """
   Makes an asynchronous cast to a FLAME pool with the given function and options.
@@ -67,74 +77,76 @@ defmodule FLAMERetry do
 
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-    # span_ctx = Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})")
+    state = get_opts!(opts)
+    state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
+    parent = self()
 
-    # Tracer.set_current_span(span_ctx)
-    parent_span_context = Ctx.get_current()
-    span_ctx = Tracer.current_span_ctx()
-    Logger.metadata(span_ctx: span_ctx)
-
-    opts = get_opts(opts)
-
-    Process.spawn(
+    pid = Process.spawn(
       fn ->
-        Ctx.attach(parent_span_context)
-        Tracer.set_current_span(span_ctx)
+        Tracer.set_current_span(state.span_ctx)
+        Logger.metadata(span_ctx: state.span_ctx)
 
-        Tracer.with_span "FLAME.Pool.cast (#{inspect(pool)})" do
-          span_ctx = Tracer.current_span_ctx()
-          Logger.metadata(span_ctx: span_ctx)
+        func =
+          fn ->
+            Tracer.set_current_span(state.span_ctx)
 
-          func =
-            fn ->
-              Tracer.set_current_span(span_ctx)
-
-              Tracer.with_span "FLAME.Pool.cast (#{inspect(pool)})" do
-                span_ctx = Tracer.current_span_ctx()
-                Logger.metadata(span_ctx: span_ctx)
-
-                func.()
-              end
+            Tracer.with_span "...FLAME.Pool.cast (#{inspect(pool)})" do
+              Logger.metadata(span_ctx: Tracer.current_span_ctx())
+              func.()
             end
-
-          func = fn ->
-            FLAME.Pool.call(pool, func, opts)
           end
 
-          exponential_retry!(
-            func,
-            opts
-          )
+        func = fn ->
+          FLAME.Pool.call(pool, func, opts)
+          Tracer.end_span(state.span_ctx)
+        end
+
+        case res = exponential_retry!(
+          func,
+          state
+        ) do
+        {:ok, new_pid} when is_pid(new_pid) ->
+            Logger.debug("Successfully spawned a new pid: #{inspect(new_pid)}")
+            send(parent, {:ok_finished_spawned_pid,self(), new_pid})
+          res
+
+
+        _ -> res
         end
       end,
       []
     )
 
-    :ok
+    {:ok, pid}
   end
 
-  defp get_opts(opts) do
-    opts = Keyword.validate!(opts, @valid_opts)
+  defp get_opts!(opts) do
     opts = Keyword.put_new(opts, :retries, @retries)
     opts = Keyword.put_new(opts, :base_delay, @base_delay)
     opts = Keyword.put_new(opts, :exponential_factor, @exponential_factor)
-    opts = Keyword.put_new(opts, :timeout, @default_timeout)
+    opts = Keyword.put_new(opts, :timeout, @timeout)
     opts = Keyword.put_new(opts, :fallback_function, nil)
     opts = Keyword.put_new(opts, :link, true)
-    opts
+    opts = Keyword.put_new(opts, :parent_span_ctx, Tracer.current_span_ctx())
+
+    struct(__MODULE__, opts)
   end
 
-  defp exponential_retry!(func, opts) do
+  defp exponential_retry!(func, state) do
     # Increase by 1 to account for the initial call
-    do_retry(func, opts[:retries] + 1, opts[:base_delay], opts)
+    do_retry(func, state.retries + 1, state.base_delay, state)
   end
 
-  defp do_retry(func, 0, _delay, opts) do
-    Logger.debug("Trying to run fallback of #{inspect(func)} with args #{inspect(opts)}")
+  defp do_retry(func, 0, _delay, state) do
+    Logger.debug("Trying to run fallback of #{inspect(func)} with state
+      #{inspect(state)}")
+    Tracer.end_span(state.span_ctx)
+        Tracer.set_current_span(state.parent_span_ctx)
 
-    case opts[:fallback_function] do
+    case state.fallback_function do
       nil ->
-        func.()
+        Process.exit(self(), {:error, {:failed_to_run_function, "Function was
+      configured to fail after #{state.retries} retries"}})
 
       fallback when is_function(fallback, 0) ->
         fallback.()
@@ -144,11 +156,7 @@ defmodule FLAMERetry do
     end
   end
 
-  defp do_retry(func, retries, delay, opts) do
-    exponential_factor = opts[:exponential_factor]
-
-    Logger.debug("Trying to run function #{inspect(func)}")
-
+  defp do_retry(func, retries, delay, state) do
     try do
       func.()
     rescue
@@ -162,8 +170,8 @@ defmodule FLAMERetry do
         do_retry(
           func,
           max(0, retries - 1),
-          delay * exponential_factor + :rand.uniform(delay),
-          opts
+          delay * state.exponential_factor + :rand.uniform(delay),
+          state
         )
     end
   end

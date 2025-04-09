@@ -7,17 +7,25 @@ defmodule FlameRetryTest do
   setup_all do
     counter = start_supervised!({FLAME.FailBackend.Counter, initial_value: 0, name: :counter})
 
-    pid =
-      start_supervised!(
-        {FLAME.Pool,
-         name: Giraff.Fail,
-         backend: {FLAME.FailBackend, fail_after_counter: counter},
-         min: 0,
-         max: 1,
-         max_concurrency: 10}
-      )
+    start_supervised!(
+      {FLAME.Pool,
+       name: Giraff.Fail,
+       backend: {FLAME.FailBackend, fail_after_counter: counter},
+       min: 0,
+       max: 1,
+       max_concurrency: 10}
+    )
 
-    %{pool: pid, fail_after: counter}
+    start_supervised!(
+      {FLAME.Pool,
+       name: Giraff.EndGameBackend,
+       backend: FLAME.LocalBackend,
+       min: 0,
+       max: 1,
+       max_concurrency: 10}
+    )
+
+    %{fail_after: counter}
   end
 
   test "flame retry working" do
@@ -41,19 +49,19 @@ defmodule FlameRetryTest do
     ExUnit.CaptureLog.capture_log(fn ->
       caller_pid = self()
 
-      FLAMERetry.cast(
-        Giraff.EndGameBackend,
-        fn ->
-          Process.spawn(
-            fn ->
-              Process.sleep(:timer.seconds(1))
-              send(caller_pid, {caller_pid, :ok})
-            end,
-            []
-          )
-        end,
-        caller_pid: caller_pid
-      )
+      {:ok, _} =
+        FLAMERetry.cast(
+          Giraff.EndGameBackend,
+          fn ->
+            Process.spawn(
+              fn ->
+                send(caller_pid, {caller_pid, :ok})
+              end,
+              []
+            )
+          end,
+          caller_pid: caller_pid
+        )
 
       assert_receive {^caller_pid, :ok}, :timer.seconds(2)
     end)
@@ -116,6 +124,107 @@ defmodule FlameRetryTest do
           Logger.debug("FLAMERetryTest: calling fallback")
         end
       )
+
+      assert_receive {^caller_pid, :ok}, :timer.seconds(3)
+    end)
+  end
+
+  test "flame get a signal when the process exits and fails" do
+    ExUnit.CaptureLog.capture_log(fn ->
+      caller_pid = self()
+
+      {:ok, pid} =
+        FLAMERetry.cast(
+          Giraff.Fail,
+          fn ->
+            :ok
+          end,
+          caller_pid: caller_pid,
+          retries: 0
+        )
+
+      ref = Process.monitor(pid)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, {:error, {:failed_to_run_function, _}}},
+                     :timer.seconds(3)
+
+      refute_receive {:DOWN, _, _, _, :normal}
+    end)
+  end
+
+  test "flame get a signal when the process exits and fails, in the fallback" do
+    ExUnit.CaptureLog.capture_log(fn ->
+      caller_pid = self()
+
+      {:ok, pid} =
+        FLAMERetry.cast(
+          Giraff.Fail,
+          fn ->
+            :ok
+          end,
+          caller_pid: caller_pid,
+          retries: 0,
+          fallback_function: fn ->
+            FLAMERetry.cast(
+              Giraff.Fail,
+              fn ->
+                :ok
+              end,
+              caller_pid: caller_pid,
+              retries: 0
+            )
+          end
+        )
+
+      ref = Process.monitor(pid)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal},
+                     :timer.seconds(3)
+
+      assert_receive {:ok_finished_spawned_pid, ^pid, pid},
+                     :timer.seconds(3)
+
+      ref = Process.monitor(pid)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, {:error, {:failed_to_run_function, _}}},
+                     :timer.seconds(3)
+
+      refute_receive {:DOWN, _, _, _, :normal}
+    end)
+  end
+
+  test "flame get a signal when the process exits and fails, success in the
+    fallback, with pid transfer" do
+    ExUnit.CaptureLog.capture_log(fn ->
+      caller_pid = self()
+
+      {:ok, pid} =
+        FLAMERetry.cast(
+          Giraff.Fail,
+          fn ->
+            :ok
+          end,
+          caller_pid: caller_pid,
+          retries: 0,
+          fallback_function: fn ->
+            FLAMERetry.cast(
+              Giraff.EndGameBackend,
+              fn ->
+                send(caller_pid, {caller_pid, :ok})
+              end,
+              caller_pid: caller_pid,
+              retries: 0
+            )
+          end
+        )
+
+      ref = Process.monitor(pid)
+
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal},
+                     :timer.seconds(3)
+
+      assert_receive {:ok_finished_spawned_pid, ^pid, pid},
+                     :timer.seconds(3)
 
       assert_receive {^caller_pid, :ok}, :timer.seconds(3)
     end)

@@ -47,13 +47,13 @@
         + ''
           mkdir -p .venv/bin
           ln -s ${self'.packages.python-vosk}/bin/vosk .venv/bin/vosk
-          VOSK_PATH="priv/python/model"
+          VOSK_PATH=$(realpath --no-symlinks "priv/python/model")
           rm -rf "$VOSK_PATH" || true
           ln -s "${self'.packages.voskModel}" "$VOSK_PATH"
-          VOSK_PATH="model"
+          VOSK_PATH=$(realpath --no-symlinks "model")
           rm -rf "$VOSK_PATH" || true
           ln -s "${self'.packages.voskModel}" "$VOSK_PATH"
-
+          VOSK_PATH=$(realpath --no-symlinks "model/vosk")
         '';
     };
   };
