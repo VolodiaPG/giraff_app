@@ -60,8 +60,8 @@ backend_configs = %{
     millicpu: 2000,
     memory_mb: 1500,
     min: 0,
-    max_concurrency: 2,
-    latency_max_ms: 50
+    max_concurrency: 4,
+    latency_max_ms: 10
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
@@ -71,7 +71,7 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 5,
-    latency_max_ms: 200
+    latency_max_ms: 75
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -80,8 +80,8 @@ backend_configs = %{
     millicpu: 1000,
     memory_mb: 2048,
     min: 0,
-    max_concurrency: 2,
-    latency_max_ms: 100
+    max_concurrency: 4,
+    latency_max_ms: 20
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
@@ -90,8 +90,8 @@ backend_configs = %{
     millicpu: 256,
     memory_mb: 512,
     min: 0,
-    max_concurrency: 2,
-    latency_max_ms: 1_000
+    max_concurrency: 4,
+    latency_max_ms: 150
   }
 }
 

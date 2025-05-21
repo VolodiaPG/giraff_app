@@ -45,9 +45,9 @@ run ip is_nix="mix":
     if [ "{{is_nix}}" = "nix" ]; then
         export GIRAFF_NODE_ID="4b1a3a31-8130-431a-8a08-8a5be3becc3b"
         export MARKET_URL="{{ip}}:30008"
-        export MIX_ENV=prod
+        export MIX_ENV=docker
         export OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION="http://{{ip}}:4317"
-        BUILDPATH=$(nix build --print-out-paths .#prod)
+        BUILDPATH=$(nix build --print-out-paths .#docker)
         $BUILDPATH/bin/server
     elif [ "{{is_nix}}" = "docker" ]; then
         export MIX_ENV=docker

@@ -81,41 +81,43 @@ defmodule FLAMERetry do
     state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
     parent = self()
 
-    pid = Process.spawn(
-      fn ->
-        Tracer.set_current_span(state.span_ctx)
-        Logger.metadata(span_ctx: state.span_ctx)
+    pid =
+      Process.spawn(
+        fn ->
+          Tracer.set_current_span(state.span_ctx)
+          Logger.metadata(span_ctx: state.span_ctx)
 
-        func =
-          fn ->
-            Tracer.set_current_span(state.span_ctx)
+          func =
+            fn ->
+              Tracer.set_current_span(state.span_ctx)
 
-            Tracer.with_span "...FLAME.Pool.cast (#{inspect(pool)})" do
-              Logger.metadata(span_ctx: Tracer.current_span_ctx())
-              func.()
+              Tracer.with_span "...FLAME.Pool.cast (#{inspect(pool)})" do
+                Logger.metadata(span_ctx: Tracer.current_span_ctx())
+                func.()
+              end
             end
+
+          func = fn ->
+            FLAME.Pool.call(pool, func, opts)
+            Tracer.end_span(state.span_ctx)
           end
 
-        func = fn ->
-          FLAME.Pool.call(pool, func, opts)
-          Tracer.end_span(state.span_ctx)
-        end
+          case res =
+                 exponential_retry!(
+                   func,
+                   state
+                 ) do
+            {:ok, new_pid} when is_pid(new_pid) ->
+              Logger.debug("Successfully spawned a new pid: #{inspect(new_pid)}")
+              send(parent, {:ok_finished_spawned_pid, self(), new_pid})
+              res
 
-        case res = exponential_retry!(
-          func,
-          state
-        ) do
-        {:ok, new_pid} when is_pid(new_pid) ->
-            Logger.debug("Successfully spawned a new pid: #{inspect(new_pid)}")
-            send(parent, {:ok_finished_spawned_pid,self(), new_pid})
-          res
-
-
-        _ -> res
-        end
-      end,
-      []
-    )
+            _ ->
+              res
+          end
+        end,
+        []
+      )
 
     {:ok, pid}
   end
@@ -141,7 +143,7 @@ defmodule FLAMERetry do
     Logger.debug("Trying to run fallback of #{inspect(func)} with state
       #{inspect(state)}")
     Tracer.end_span(state.span_ctx)
-        Tracer.set_current_span(state.parent_span_ctx)
+    Tracer.set_current_span(state.parent_span_ctx)
 
     case state.fallback_function do
       nil ->
@@ -157,6 +159,8 @@ defmodule FLAMERetry do
   end
 
   defp do_retry(func, retries, delay, state) do
+    Tracer.set_attribute("retries", retries)
+
     try do
       func.()
     rescue

@@ -91,7 +91,7 @@ defmodule Giraff.Endpoint do
         Process.demonitor(ref, [:flush])
         await_end_process_speech(caller, new_pid)
     after
-      60_000 ->
+      300_000 ->
         Logger.error("Timeout waiting for transcription and sentiment")
 
         Tracer.set_status(
