@@ -52,12 +52,35 @@ defmodule FLAMERetry do
       FLAME.Pool.call(MyPool, fn -> do_work() end, link: false)
   """
 
-  # @spec call(atom(), (-> any()), keyword()) :: any()
-  # def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-  #   opts = get_opts(opts)
-  #   func = fn -> FLAME.Pool.call(pool, func, opts) end
-  #   exponential_retry!(func, opts)
-  # end
+  @spec call(atom(), (-> any()), keyword()) :: any()
+  def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+    state = get_opts!(opts)
+    state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
+    parent = self()
+
+    Tracer.set_current_span(state.span_ctx)
+    Logger.metadata(span_ctx: state.span_ctx)
+
+    func =
+      fn ->
+        Tracer.set_current_span(state.span_ctx)
+
+        Tracer.with_span "...FLAME.Pool.cast (#{inspect(pool)})" do
+          Logger.metadata(span_ctx: Tracer.current_span_ctx())
+          func.()
+        end
+      end
+
+    func = fn ->
+      FLAME.Pool.call(pool, func, opts)
+      Tracer.end_span(state.span_ctx)
+    end
+
+    exponential_retry!(
+      func,
+      state
+    )
+  end
 
   @doc """
   Makes an asynchronous cast to a FLAME pool with the given function and options.

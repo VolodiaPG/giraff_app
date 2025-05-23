@@ -6,27 +6,49 @@ defmodule Giraff.Application do
   use Application
   require Logger
 
+  @sup_opts [strategy: :one_for_one, name: Giraff.Supervisor]
+
   @impl true
   def start(_type, _args) do
-    end_game_backend = Application.fetch_env!(:giraff, :end_game_backend)
-    speech_to_text_backend = Application.fetch_env!(:giraff, :speech_to_text_backend)
-    sentiment_backend = Application.fetch_env!(:giraff, :sentiment_backend)
-    text_to_speech_backend = Application.fetch_env!(:giraff, :text_to_speech_backend)
-    vosk_speech_to_text_backend = Application.fetch_env!(:giraff, :vosk_speech_to_text_backend)
+    config = Application.fetch_env!(:giraff, Giraff.Application)
 
-    children =
-      children(
+    backends =
+      [
+        Application.fetch_env!(:giraff, :end_game_backend),
+        Application.fetch_env!(:giraff, :speech_to_text_backend),
+        Application.fetch_env!(:giraff, :sentiment_backend),
+        Application.fetch_env!(:giraff, :text_to_speech_backend),
+        Application.fetch_env!(:giraff, :vosk_speech_to_text_backend)
+      ]
+      |> Enum.map(fn pool ->
+        if config[:env] != :test do
+          backend = Keyword.fetch!(pool, :backend)
+
+          if backend == FLAME.GiraffBackend do
+            Keyword.merge(backend,
+              on_accepted_offer: &Giraff.Cost.on_accepted_offer/2
+            )
+          end
+
+          Keyword.merge(pool,
+            on_grow_start: &Giraff.Cost.on_grow_start/1,
+            on_grow_end: &Giraff.Cost.on_grow_end/1,
+            on_shrink: &Giraff.Cost.on_shrink/1
+          )
+        end
+      end)
+      |> Enum.map(fn pool ->
+        {:always, pool}
+      end)
+
+    children_args =
+      [
         always: {Task.Supervisor, name: Giraff.TaskSup},
         always: {DynamicSupervisor, name: Giraff.DynamicSup},
         flame_vosk_speech_to_text: :poolboy.child_spec(:worker, vosk_poolboy_config()),
         flame_speech_to_text: AI.SpeechRecognitionServer,
         flame_sentiment: AI.SentimentServer,
-        always: speech_to_text_backend,
-        always: text_to_speech_backend,
-        always: vosk_speech_to_text_backend,
-        always: sentiment_backend,
-        always: end_game_backend,
-        # parent: speech_to_text_backend,
+        always: {Giraff.Cost, []}
         #         parent: text_to_speech_backend,
         #         parent: vosk_speech_to_text_backend,
         #         parent: sentiment_backend,
@@ -36,64 +58,18 @@ defmodule Giraff.Application do
         # flame_vosk_speech_to_text: sentiment_backend,
         # flame_vosk_speech_to_text: end_game_backend,
         # flame_sentiment: end_game_backend,
-        always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
-      )
+      ] ++
+        backends ++
+        [
+          always: {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
+        ]
+
+    children = children(children_args)
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Giraff.Supervisor]
-    config = Application.fetch_env!(:giraff, Giraff.Application)
     Logger.info("Starting #{config[:env]} application...")
-    {:ok, sup} = Supervisor.start_link(children, opts)
-
-    # {:ok, sup} =
-    #   Supervisor.start_link(
-    #     [
-    #       {Task.Supervisor, name: Giraff.TaskSup},
-    #       {DynamicSupervisor, name: Giraff.DynamicSup}
-    #     ],
-    #     opts
-    #   )
-
-    # # Start async children
-    # Enum.each(children, fn child_spec ->
-    #   Task.Supervisor.start_child(Giraff.TaskSup, fn ->
-    #     DynamicSupervisor.start_child(Giraff.DynamicSup, child_spec)
-    #   end)
-    # end)
-
-    # Wait for all children to start
-    # Task.start(fn ->
-    #   start_time = System.monotonic_time(:millisecond)
-    #   wait_interval = 100
-    #   timeout = :timer.minutes(1)
-
-    #   Stream.interval(wait_interval)
-    #   |> Stream.take_while(fn _ ->
-    #     elapsed = System.monotonic_time(:millisecond) - start_time
-
-    #     if elapsed > timeout do
-    #       Logger.warning("Timeout waiting for children to start")
-    #       false
-    #     else
-    #       case DynamicSupervisor.count_children(Giraff.DynamicSup) do
-    #         %{active: active, specs: specs} when active == specs and specs == length(children) ->
-    #           Logger.info("All #{specs} children started successfully, starting web server")
-
-    #           Supervisor.start_child(
-    #             sup,
-    #             {Bandit, plug: GiraffWeb.Endpoint, port: Application.get_env(:giraff, :port)}
-    #           )
-
-    #           false
-
-    #         _ ->
-    #           true
-    #       end
-    #     end
-    #   end)
-    #   |> Stream.run()
-    # end)
+    {:ok, sup} = Supervisor.start_link(children, @sup_opts)
 
     {:ok, sup}
   end

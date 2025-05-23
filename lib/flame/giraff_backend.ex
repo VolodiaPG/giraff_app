@@ -57,7 +57,9 @@ defmodule FLAME.GiraffBackend do
             faas_port: nil,
             function_id: nil,
             log: nil,
-            runner_node_name: nil
+            runner_node_name: nil,
+            on_accepted_offer: nil,
+            on_new_boot: nil
 
   @valid_opts [
     :name,
@@ -78,7 +80,9 @@ defmodule FLAME.GiraffBackend do
     :latency_max_ms,
     :from,
     :input_max_size_kib,
-    :target_entrypoint
+    :target_entrypoint,
+    :on_accepted_offer,
+    :on_new_boot
   ]
 
   @impl true
@@ -196,6 +200,8 @@ defmodule FLAME.GiraffBackend do
 
   @impl true
   def remote_boot(%GiraffBackend{parent_ref: parent_ref} = state) do
+    if state.on_new_boot, do: state.on_new_boot.(%{name: state.name})
+
     {resp, req_connect_time} =
       with_elapsed_ms(fn ->
         env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> ["#{x}", "#{y}"] end)
@@ -238,7 +244,12 @@ defmodule FLAME.GiraffBackend do
           %{
             status: 200,
             body: %{
-              "chosen" => %{"ip" => faas_ip, "bid" => %{"nodeId" => faas_id}, "port" => faas_port},
+              "chosen" => %{
+                "ip" => faas_ip,
+                "bid" => %{"nodeId" => faas_id},
+                "price" => price,
+                "port" => faas_port
+              },
               "sla" => %{"id" => function_id}
             }
           } ->
@@ -252,6 +263,9 @@ defmodule FLAME.GiraffBackend do
 
             case res do
               %{status: 200} ->
+                if state.on_accepted_offer,
+                  do: state.on_accepted_offer.(%{name: state.name, price: price})
+
                 {:ok, faas_ip, faas_port, faas_id, function_id}
 
               _ ->
