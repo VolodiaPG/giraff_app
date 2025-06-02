@@ -90,13 +90,21 @@ defmodule Giraff.Cost do
   end
 
   def handle_call({:booted, function_name, cost}, _from, state) do
-    new_budget = state.budget - cost
-    new_db = Map.put(state.db, function_name, cost)
+    Tracer.with_span "start_processing_requests" do
+      Logger.metadata(span_ctx: Tracer.current_span_ctx())
 
-    new_state = %{state | budget: new_budget, db: new_db}
-    Logger.debug("put #{function_name} with #{cost} in #{inspect(state.db)}")
+      new_budget = state.budget - cost
+      new_db = Map.put(state.db, function_name, cost)
 
-    {:reply, :scaling, new_state}
+      Tracer.set_attribute("budget", state.budget)
+      Tracer.set_attribute("cost", cost)
+      Tracer.set_attribute("new_budget", new_budget)
+
+      new_state = %{state | budget: new_budget, db: new_db}
+      Logger.debug("put #{function_name} with #{cost} in #{inspect(state.db)}")
+
+      {:reply, :scaling, new_state}
+    end
   end
 
   def on_new_boot(cost_pid, %{name: name}) do
