@@ -128,7 +128,9 @@ defmodule EndpoindTest do
        ]
   test "fail backend" do
     ExUnit.CaptureLog.capture_log(fn ->
-      assert_raise(RuntimeError, ~r/Debug: emulating backend failure/, fn ->
+      # FLAME.Pool.Error is a custom error contributed in my fork of flame at
+      # the time of writing
+      assert_raise(FLAME.Pool.Error, ~r/Debug: emulating backend failure/, fn ->
         FLAME.call(Giraff.EndGameBackend, fn ->
           :ok
         end)

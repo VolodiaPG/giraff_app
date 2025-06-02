@@ -44,15 +44,15 @@ defmodule FLAME.CostTestBackend do
 
   @impl true
   def remote_boot(
-        %costtestbackend{
+        %CostTestBackend{
           local_backend: local_backend,
           price: price,
           name: name
         } = state
       ) do
     if state.on_new_boot, do: state.on_new_boot.(%{name: name})
-    {:ok, terminator_pid, local_backend} = FLAME.LocalBackend.remote_boot(local_backend)
     if state.on_accepted_offer, do: state.on_accepted_offer.(%{name: name, price: price})
+    {:ok, terminator_pid, local_backend} = FLAME.LocalBackend.remote_boot(local_backend)
     {:ok, terminator_pid, %{state | local_backend: local_backend}}
   end
 end

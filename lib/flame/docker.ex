@@ -40,6 +40,8 @@ defmodule FLAME.DockerBackend do
             runner_instance_id: nil,
             runner_private_ip: nil,
             runner_node_name: nil,
+            on_new_boot: nil,
+            on_accepted_offer: nil,
             log: nil
 
   @valid_opts [
@@ -54,7 +56,9 @@ defmodule FLAME.DockerBackend do
     :terminator_sup,
     :log,
     :services,
-    :livename
+    :livename,
+    :on_new_boot,
+    :on_accepted_offer
   ]
 
   @impl true
@@ -162,6 +166,8 @@ defmodule FLAME.DockerBackend do
 
   @impl true
   def remote_boot(%DockerBackend{parent_ref: parent_ref} = state) do
+    if state.on_new_boot, do: state.on_new_boot.(%{name: state.name})
+
     {resp, req_connect_time} =
       with_elapsed_ms(fn ->
         env = state.env |> Map.to_list() |> Enum.map(fn {x, y} -> "#{x}=#{y}" end)
@@ -215,6 +221,13 @@ defmodule FLAME.DockerBackend do
           ],
           body: ""
         )
+
+        if state.on_accepted_offer,
+          do:
+            state.on_accepted_offer.(%{
+              name: state.name,
+              price: Application.fetch_env!(:giraff, :cost_per_request)
+            })
 
         {:success, container_id, "127.0.0.1"}
       end)

@@ -31,6 +31,6 @@ config :logger,
     :console
   ]
 
-config :giraff, :new_budget_per_request, 100
+config :giraff, :new_budget_per_request, 0.3
 
 import_config "#{config_env()}.exs"

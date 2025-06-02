@@ -12,6 +12,14 @@ defmodule Giraff.Application do
   def start(_type, _args) do
     config = Application.fetch_env!(:giraff, Giraff.Application)
 
+    on_new_boot = fn arg ->
+      Giraff.Cost.on_new_boot({:global, :cost_server}, arg)
+    end
+
+    on_accepted_offer = fn arg ->
+      Giraff.Cost.on_accepted_offer({:global, :cost_server}, arg)
+    end
+
     backends =
       [
         Application.fetch_env!(:giraff, :end_game_backend),
@@ -20,21 +28,25 @@ defmodule Giraff.Application do
         Application.fetch_env!(:giraff, :text_to_speech_backend),
         Application.fetch_env!(:giraff, :vosk_speech_to_text_backend)
       ]
-      |> Enum.map(fn pool ->
+      |> Enum.map(fn arg ->
         if config[:env] != :test do
-          backend = Keyword.fetch!(pool, :backend)
+          {pool, pool_config} = arg
+          {backend, backend_config} = Keyword.fetch!(pool_config, :backend)
 
-          if backend == FLAME.GiraffBackend do
-            Keyword.merge(backend,
-              on_accepted_offer: &Giraff.Cost.on_accepted_offer/2
+          new_backend_config =
+            Keyword.merge(backend_config,
+              on_new_boot: on_new_boot,
+              on_accepted_offer: on_accepted_offer
             )
-          end
 
-          Keyword.merge(pool,
-            on_grow_start: &Giraff.Cost.on_grow_start/1,
-            on_grow_end: &Giraff.Cost.on_grow_end/1,
-            on_shrink: &Giraff.Cost.on_shrink/1
-          )
+          new_config =
+            Keyword.merge(pool_config,
+              backend: {backend, new_backend_config}
+            )
+
+          {pool, new_config}
+        else
+          arg
         end
       end)
       |> Enum.map(fn pool ->
@@ -48,7 +60,7 @@ defmodule Giraff.Application do
         flame_vosk_speech_to_text: :poolboy.child_spec(:worker, vosk_poolboy_config()),
         flame_speech_to_text: AI.SpeechRecognitionServer,
         flame_sentiment: AI.SentimentServer,
-        always: {Giraff.Cost, []}
+        parent: {Giraff.Cost, [name: {:global, :cost_server}, nb_requests_to_wait: 2]}
         #         parent: text_to_speech_backend,
         #         parent: vosk_speech_to_text_backend,
         #         parent: sentiment_backend,

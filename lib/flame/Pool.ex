@@ -56,7 +56,6 @@ defmodule FLAMERetry do
   def call(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
     state = get_opts!(opts)
     state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
-    parent = self()
 
     Tracer.set_current_span(state.span_ctx)
     Logger.metadata(span_ctx: state.span_ctx)
@@ -186,11 +185,47 @@ defmodule FLAMERetry do
 
     try do
       func.()
-    rescue
-      err ->
-        Logger.warning("Retry attempt failed, #{retries} attempts remaining,
-           trying after #{delay} ms.
-           Error: #{inspect(err)} in #{inspect(__STACKTRACE__)}")
+    catch
+      _, %FLAME.Pool.Error{reason: {{:error, {:cost, :degraded}}, _}} ->
+        Logger.warning("Cost module instructed to degrade")
+
+        do_retry(
+          func,
+          0,
+          0,
+          state
+        )
+
+      _, %FLAME.Pool.Error{reason: {{:error, {:cost, :wait}}, _}} ->
+        Logger.warning("Cost module instructed to wait, #{retries} retries remaining")
+
+        Process.sleep(delay)
+
+        do_retry(
+          func,
+          max(0, retries - 1),
+          delay * state.exponential_factor + :rand.uniform(delay),
+          state
+        )
+
+      _, %FLAME.Pool.Error{reason: {{:error, {:cost, {:wait, :no_decrement}}}, _}} ->
+        Logger.warning("Cost module instructed to wait, staying at #{retries} retries remaining")
+
+        Process.sleep(delay)
+
+        do_retry(
+          func,
+          retries,
+          delay * state.exponential_factor + :rand.uniform(delay),
+          state
+        )
+
+      _, err = %FLAME.Pool.Error{} ->
+        Logger.warning("Retry attempt failed, #{retries} attempts remaining")
+
+        # Logger.warning("#{inspect(err)} Retry attempt failed, #{retries} attempts remaining,
+        #       trying after #{delay} ms.
+        #       Error: #{inspect(err)} in #{inspect(__STACKTRACE__)}")
 
         Process.sleep(delay)
 

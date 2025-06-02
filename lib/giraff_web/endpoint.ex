@@ -20,6 +20,8 @@ defmodule GiraffWeb.Endpoint do
   end
 
   defp process_speech(conn, audio_data) do
+    Giraff.Cost.on_new_request_start({:global, :cost_server})
+
     case Giraff.Endpoint.endpoint(audio_data) do
       {:ok, result} ->
         conn
@@ -50,6 +52,8 @@ defmodule GiraffWeb.Endpoint do
           })
         )
     end
+  after
+    Giraff.Cost.on_new_request_end({:global, :cost_server})
   end
 
   post "/" do

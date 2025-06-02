@@ -235,7 +235,7 @@ case config_env() do
     end
 
   :dev ->
-    config :flame, :backend, FLAME.LocalBackend
+    config :flame, :backend, FLAME.CostTestBackend
 
     for {backend_type, config} <- backend_configs do
       config_key = :"#{backend_type}"
@@ -254,7 +254,7 @@ case config_env() do
   :test ->
     config :flame, :backend, FLAME.LocalBackend
 
-    for {backend_type, config} <- backend_configs do
+    for {backend_type, _config} <- backend_configs do
       config_key = :"#{backend_type}"
 
       config :giraff, config_key, nil
