@@ -10,6 +10,7 @@ defmodule Giraff.Cost do
 
   use GenServer
   require Logger
+  require OpenTelemetry.Tracer, as: Tracer
 
   alias Giraff.Cost
 
@@ -30,8 +31,12 @@ defmodule Giraff.Cost do
 
   @impl true
   def handle_call(:new_request_start, _from, state) do
-    Logger.debug("Got new request start")
-    new_budget = state.budget + Application.get_env(:giraff, :new_budget_per_request)
+    Logger.debug(
+      "Got new request start #{inspect(Application.fetch_env!(:giraff,
+      :new_budget_per_request))}"
+    )
+
+    new_budget = state.budget + Application.fetch_env!(:giraff, :new_budget_per_request)
 
     new_state = %{
       state
@@ -54,10 +59,6 @@ defmodule Giraff.Cost do
   end
 
   def handle_call({:scale_out, function_name}, _from, state) do
-    # Logger.debug("got db #{inspect(state.db)}, and budget #{state.budget},
-    #   function_name #{function_name},
-    #   #{state.db[function_name]}.")
-
     Logger.debug("Got function #{function_name} with budget #{state.budget}")
 
     case state.db[function_name] do
@@ -90,15 +91,14 @@ defmodule Giraff.Cost do
   end
 
   def handle_call({:booted, function_name, cost}, _from, state) do
-    Tracer.with_span "start_processing_requests" do
-      Logger.metadata(span_ctx: Tracer.current_span_ctx())
-
+    Tracer.with_span "new_function_booted" do
       new_budget = state.budget - cost
       new_db = Map.put(state.db, function_name, cost)
 
       Tracer.set_attribute("budget", state.budget)
       Tracer.set_attribute("cost", cost)
       Tracer.set_attribute("new_budget", new_budget)
+      Tracer.set_attribute("function_name", function_name)
 
       new_state = %{state | budget: new_budget, db: new_db}
       Logger.debug("put #{function_name} with #{cost} in #{inspect(state.db)}")
@@ -118,17 +118,14 @@ defmodule Giraff.Cost do
   end
 
   def on_accepted_offer(cost_pid, %{name: name, price: price}) do
-    Logger.debug("on_accepted_offer #{name} #{price}")
     GenServer.call(cost_pid, {:booted, to_string(name), price})
   end
 
   def on_new_request_start(cost_pid) do
-    Logger.debug("on_new_request_start")
     GenServer.call(cost_pid, :new_request_start)
   end
 
   def on_new_request_end(cost_pid) do
-    Logger.debug("on_new_request_end")
     GenServer.call(cost_pid, :new_request_end)
   end
 end

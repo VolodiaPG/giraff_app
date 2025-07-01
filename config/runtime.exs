@@ -61,7 +61,7 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 10
+    latency_max_ms: 20
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
@@ -260,3 +260,7 @@ case config_env() do
       config :giraff, config_key, nil
     end
 end
+
+config :giraff,
+       :new_budget_per_request,
+       String.to_integer(System.get_env("NEW_BUDGET_PER_REQUEST", "100"))
