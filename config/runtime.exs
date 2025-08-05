@@ -41,6 +41,8 @@ config :opentelemetry_exporter,
   otlp_protocol: :grpc,
   otlp_endpoint: otel_endpoint
 
+config :flame, service_name: System.get_env("NAME") || "giraff_application"
+
 # Define common pool configurations for each backend type
 backend_configs = %{
   end_game_backend: %{

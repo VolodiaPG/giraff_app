@@ -115,7 +115,10 @@ defmodule FLAME.GiraffBackend do
       end
     end
 
-    livename = "#{state.name}-#{rand_id(8)}"
+
+    service_name = Application.get_env(:flame, :service_name)
+
+    livename = "#{service_name}-#{state.name}-#{rand_id(8)}"
     state = %GiraffBackend{state | livename: livename}
     parent_ref = make_ref()
 
