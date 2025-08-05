@@ -33,7 +33,7 @@
             elixir-ls
             # Required at runtime
             ffmpeg-headless
-            mimic
+            # mimic
           ]
           ++ lib.optional stdenv.isLinux inotify-tools
           ++ (
