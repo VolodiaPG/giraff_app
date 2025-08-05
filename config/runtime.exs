@@ -25,10 +25,15 @@ IO.puts("Using otel at #{otel_endpoint}")
 
 config :giraff, otel_endpoint: otel_endpoint
 
+name = System.get_env("NAME") || "giraff_application"
+namespace = System.get_env("OTEL_NAMESPACE") || name
+
+config :flame, otel_namespace: namespace
+
 config :opentelemetry, :resource,
   service: %{
-    name: System.get_env("NAME") || "giraff_application",
-    namespace: "giraff",
+    name: name,
+    namespace: namespace,
     version: "0.0.1"
   }
 
@@ -40,8 +45,6 @@ config :opentelemetry, :processors,
 config :opentelemetry_exporter,
   otlp_protocol: :grpc,
   otlp_endpoint: otel_endpoint
-
-config :flame, service_name: System.get_env("NAME") || "giraff_application"
 
 # Define common pool configurations for each backend type
 backend_configs = %{

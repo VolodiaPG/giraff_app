@@ -14,10 +14,10 @@ defmodule FLAMERetry do
 
   alias FLAME
 
-  @retries 3
-  @base_delay 500
+  @retries 2
+  @base_delay 50
   @exponential_factor 2
-  @timeout :timer.seconds(60)
+  @timeout :timer.seconds(10)
   # @valid_opts [
   #   :retries,
   #   :base_delay,

@@ -89,9 +89,7 @@ defmodule FLAME.DockerBackend do
       end
     end
 
-    service_name = Application.get_env(:flame, :service_name)
-
-    livename = "#{service_name}-#{state.name}-#{rand_id(8)}"
+    livename = "#{state.name}_#{rand_id(8)}"
     state = %DockerBackend{state | livename: livename}
     parent_ref = make_ref()
 
@@ -103,6 +101,7 @@ defmodule FLAME.DockerBackend do
     new_env =
       %{
         "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
+        "OTEL_NAMESPACE" => Application.get_env(:flame, :otel_namespace),
         "OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION" => Application.get_env(:giraff, :otel_endpoint),
         "FLAME_PARENT" => encoded_parent,
         "RELEASE_COOKIE" => Node.get_cookie(),
