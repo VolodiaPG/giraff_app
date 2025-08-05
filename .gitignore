@@ -18,6 +18,7 @@
 # Allow Nix files
 !*.nix
 !flake.lock
+!.envrc
 
 # Allow specific directories and their contents
 !lib/**/*.ex

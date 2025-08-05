@@ -89,7 +89,9 @@ defmodule FLAME.DockerBackend do
       end
     end
 
-    livename = "#{state.name}_#{rand_id(14)}"
+    service_name = Application.get_env(:flame, :service_name)
+
+    livename = "#{service_name}-#{state.name}-#{rand_id(8)}"
     state = %DockerBackend{state | livename: livename}
     parent_ref = make_ref()
 
