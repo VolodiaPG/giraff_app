@@ -58,6 +58,9 @@ defmodule Giraff.Cost do
     {:reply, :ok, new_state}
   end
 
+  # Todo: nb requests in flight should be per function and not global
+  # should also be the case for nb request to wait
+
   def handle_call({:scale_out, function_name}, _from, state) do
     Logger.debug("Got function #{function_name} with budget #{state.budget}")
 
@@ -79,7 +82,7 @@ defmodule Giraff.Cost do
             {:reply, :wait, state}
 
           cost <= state.budget ->
-            new_budget = state.budget - cost
+            # new_budget = state.budget - cost
             Logger.debug("Choosing to scale out")
             {:reply, :scaling, %{state | budget: new_budget}}
 

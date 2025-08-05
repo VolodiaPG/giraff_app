@@ -181,7 +181,7 @@ defmodule FLAMERetry do
   end
 
   defp do_retry(func, retries, delay, state) do
-    Tracer.set_attribute("retries", retries)
+    Tracer.set_attribute("retries_left", retries)
 
     try do
       func.()
