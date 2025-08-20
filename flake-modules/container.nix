@@ -17,6 +17,7 @@
           "BERT_TWEETER_DIR=/bert-tweeter"
           "VOSK_PATH=/vosk"
           "MIX_ENV=${mix_env}"
+          "PORT=5000"
           "http_upstream_url=http://127.0.0.1:5000"
           "ready_path=http://127.0.0.1:5000/health"
         ];

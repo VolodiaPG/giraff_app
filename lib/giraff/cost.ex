@@ -24,31 +24,46 @@ defmodule Giraff.Cost do
 
   @impl true
   def init(args) do
-    state = Map.merge(%Cost{}, Map.new(args))
+    cost_init = %Cost{
+      budget: Application.fetch_env!(:giraff, :new_budget_per_request)
+    }
+
+    state = Map.merge(cost_init, Map.new(args))
+
+    Logger.info("Cost init with state: #{inspect(state)}")
 
     {:ok, state}
   end
 
   @impl true
   def handle_call(:new_request_start, _from, state) do
-    Logger.debug(
-      "Got new request start #{inspect(Application.fetch_env!(:giraff,
-      :new_budget_per_request))}"
+    Logger.info("[request_start] Got new request start")
+
+    new_state = %{
+      state
+      | nb_requests_in_flight: state.nb_requests_in_flight + 1
+    }
+
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call(:new_request_end_success, _from, state) do
+    Logger.info(
+      "Got new request end (succes), adding #{inspect(Application.fetch_env!(:giraff, :new_budget_per_request))} to budget"
     )
 
     new_budget = state.budget + Application.fetch_env!(:giraff, :new_budget_per_request)
 
     new_state = %{
       state
-      | budget: new_budget,
-        nb_requests_in_flight: state.nb_requests_in_flight + 1
+      | budget: new_budget
     }
 
     {:reply, :ok, new_state}
   end
 
   def handle_call(:new_request_end, _from, state) do
-    Logger.debug("Got new request end")
+    Logger.info("[request_end] Got new request end")
 
     new_state = %{
       state
@@ -62,24 +77,27 @@ defmodule Giraff.Cost do
   # should also be the case for nb request to wait
 
   def handle_call({:scale_out, function_name}, _from, state) do
-    Logger.debug("Got function #{function_name} with budget #{state.budget}")
+    Logger.debug(
+      "Got function #{function_name} with budget #{state.budget}, requests currently in flight: #{state.nb_requests_in_flight} (max before scaling: #{state.nb_requests_to_wait})"
+    )
 
     case state.db[function_name] do
       nil ->
         Logger.warning("Choosing to default to scaling")
-        new_state = %{state | db: Map.put(state.db, function_name, :deploying)}
-        {:reply, :scaling, new_state}
+        # new_state = %{state | db: Map.put(state.db, function_name, :deploying)}
+        # {:reply, :scaling, new_state}
+        {:reply, :scaling, state}
 
-      :deploying ->
-        Logger.warning("Choosing to default to waiting")
-        {:reply, {:wait, :no_decrement}, state}
+      # :deploying ->
+      #   Logger.warning("Choosing to default to waiting")
+      #   {:reply, {:wait, :no_decrement}, state}
 
       cost ->
         cond do
-          not is_nil(state.nb_requests_to_wait) and
-              state.nb_requests_in_flight > state.nb_requests_to_wait ->
-            Logger.debug("Choosing to wait")
-            {:reply, :wait, state}
+          # not is_nil(state.nb_requests_to_wait) and
+          #   state.nb_requests_in_flight < state.nb_requests_to_wait ->
+          #   Logger.debug("Choosing to wait")
+          #   {:reply, :wait, state}
 
           cost <= state.budget ->
             new_budget = state.budget - cost
@@ -126,6 +144,10 @@ defmodule Giraff.Cost do
 
   def on_new_request_start(cost_pid) do
     GenServer.call(cost_pid, :new_request_start)
+  end
+
+  def on_new_request_end_success(cost_pid) do
+    GenServer.call(cost_pid, :new_request_end_success)
   end
 
   def on_new_request_end(cost_pid) do

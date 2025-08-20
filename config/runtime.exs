@@ -19,13 +19,15 @@ IO.puts("Running in environment: #{System.get_env("MIX_ENV")} with config_env() 
 
 docker_registry = System.get_env("DOCKER_REGISTRY") || "ghcr.io/volodiapg"
 
+config :giraff, docker_registry: docker_registry
+
 otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION")
 
 IO.puts("Using otel at #{otel_endpoint}")
 
 config :giraff, otel_endpoint: otel_endpoint
 
-name = System.get_env("NAME") || "giraff_application"
+name = System.get_env("ID") || System.get_env("NAME") || "giraff_application"
 namespace = System.get_env("OTEL_NAMESPACE") || name
 
 config :flame, otel_namespace: namespace
@@ -66,7 +68,7 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 20
+    latency_max_ms: 120 # 15 ms latency in the link, one way
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
@@ -76,7 +78,7 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 5,
-    latency_max_ms: 75
+    latency_max_ms: 300 # 20 ms latency in the link, one way
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -86,7 +88,7 @@ backend_configs = %{
     memory_mb: 2048,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 20
+    latency_max_ms: 120
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
@@ -96,7 +98,7 @@ backend_configs = %{
     memory_mb: 512,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 150
+    latency_max_ms: 200
   }
 }
 
@@ -147,11 +149,13 @@ get_duration = fn ->
 
   case {paid_at, sla} do
     {nil, nil} ->
+      IO.puts("Duration: (default) #{default_duration}")
       default_duration
 
     {paid_at, %{"duration" => duration_str}} ->
       case String.trim_trailing(duration_str, " s") do
         ^duration_str ->
+          IO.puts("Duration: (default) #{default_duration}")
           default_duration
 
         duration_num_str ->
@@ -174,6 +178,7 @@ get_duration = fn ->
       end
 
     _ ->
+      IO.puts("Duration: (default) #{default_duration}")
       default_duration
   end
 end

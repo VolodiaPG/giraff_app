@@ -24,6 +24,8 @@ defmodule GiraffWeb.Endpoint do
 
     case Giraff.Endpoint.endpoint(audio_data) do
       {:ok, result} ->
+        Giraff.Cost.on_new_request_end_success({:global, :cost_server})
+
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(
@@ -31,25 +33,14 @@ defmodule GiraffWeb.Endpoint do
           Jason.encode!(result)
         )
 
-      {:error, {code, reason}} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(
-          500,
-          Jason.encode!(%{
-            error_code: code,
-            reason: reason
-          })
-        )
-
       {:error, reason} ->
+        Logger.error("Request processing error: #{inspect(reason)}")
+
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(
           500,
-          Jason.encode!(%{
-            reason: reason
-          })
+          inspect(reason)
         )
     end
   after

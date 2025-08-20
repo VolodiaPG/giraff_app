@@ -12,8 +12,6 @@ defmodule FLAMERetry do
   require OpenTelemetry.Tracer, as: Tracer
   require OpenTelemetry.Ctx, as: Ctx
 
-  alias FLAME
-
   @retries 2
   @base_delay 50
   @exponential_factor 2
@@ -99,6 +97,7 @@ defmodule FLAMERetry do
 
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
+    Logger.debug("casting to pool #{inspect(pool)} with func #{inspect(func)} and opts #{inspect(opts)}")
     state = get_opts!(opts)
     state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
     parent = self()
@@ -157,20 +156,32 @@ defmodule FLAMERetry do
   end
 
   defp exponential_retry!(func, state) do
-    # Increase by 1 to account for the initial call
-    do_retry(func, state.retries + 1, state.base_delay, state)
+    if Application.get_env(:giraff, :always_fallback) do
+      Logger.warn("Always fallback mode enabled, running fallback")
+      do_retry(func, 0, 0, state)
+    else
+      # Increase by 1 to account for the initial call
+      do_retry(func, state.retries + 1, state.base_delay, state)
+    end
   end
 
   defp do_retry(func, 0, _delay, state) do
-    Logger.debug("Trying to run fallback of #{inspect(func)} with state
-      #{inspect(state)}")
     Tracer.end_span(state.span_ctx)
     Tracer.set_current_span(state.parent_span_ctx)
 
     case state.fallback_function do
       nil ->
-        Process.exit(self(), {:error, {:failed_to_run_function, "Function was
+        try do
+          func.()
+        catch
+          _ ->
+            Logger.error(
+              "Fallback function is nil, ran function after already #{state.retries} retries (the max), and failed"
+            )
+
+            Process.exit(self(), {:error, {:failed_to_run_function, "Function was
       configured to fail after #{state.retries} retries"}})
+        end
 
       fallback when is_function(fallback, 0) ->
         fallback.()
