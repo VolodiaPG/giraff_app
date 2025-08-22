@@ -35,7 +35,7 @@
             ffmpeg-headless
             # mimic
           ]
-          ++ lib.optional stdenv.isLinux inotify-tools
+          ++ lib.optional stdenv.isLinux [inotify-tools libcgroup]
           ++ (
             lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
               CoreFoundation

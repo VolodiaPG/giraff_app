@@ -53,6 +53,8 @@ run ip is_nix="mix":
         export MIX_ENV=docker
         export OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION="http://{{ip}}:4317"
         mix release --overwrite
+        # sudo systemd-run --scope  _build/docker/rel/giraff/bin/giraff start
+
         _build/docker/rel/giraff/bin/giraff start
     else
         export MIX_ENV=prod
@@ -76,11 +78,12 @@ test_raw:
         -H "Content-Type: audio/wav" \
         --data-binary "@$PATH_AUDIO/1272-135031-0014.wav" \
         localhost:5000
-test_all requests="2":
+
+test_all $requests="2":
     #!/usr/bin/env bash
     count=0
     for file in $PATH_AUDIO/*.wav; do
-        if [ $count -ge {{requests}} ]; then
+        if [ $count -ge $requests ]; then
             break
         fi
         echo "Testing $file"
@@ -91,6 +94,9 @@ test_all requests="2":
             localhost:5000&
         count=$((count + 1))
     done
+    if [ $count -lt $requests ]; then
+      exec just test_all $((requests - count))
+    fi
     wait
 
 test_vosk:

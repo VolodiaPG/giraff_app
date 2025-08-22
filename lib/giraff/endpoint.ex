@@ -31,6 +31,8 @@ defmodule Giraff.Endpoint do
                    Giraff.VoskSpeechToText.remote_speech_to_text_spec(audio_data,
                      caller_pid: parent,
                      after_callback: fn {:ok, transcription} ->
+                       send(parent, {parent, :invoked_fallback})
+
                        apply(
                          @flame,
                          :cast,
@@ -55,8 +57,23 @@ defmodule Giraff.Endpoint do
 
   defp await_end_process_speech(caller, pid) do
     ref = Process.monitor(pid)
+    await_end_process_speech(caller, pid, ref, 120_000)
+  end
+
+  defp await_end_process_speech(caller, pid, ref, timeout, fallbacks \\ 0) do
+    started_at = System.monotonic_time(:millisecond)
 
     receive do
+      {^caller, :invoked_fallback} ->
+        got_at = System.monotonic_time(:millisecond)
+        new_timeout = timeout - (got_at - started_at)
+
+        if new_timeout < 0 do
+          new_timeout = 10
+        end
+
+        await_end_process_speech(caller, pid, ref, new_timeout, fallbacks + 1)
+
       {^caller, transcription, sentiment} ->
         Process.demonitor(ref, [:flush])
         Logger.debug("Got transcription and sentiment: #{transcription}, #{inspect(sentiment)}")
@@ -77,10 +94,14 @@ defmodule Giraff.Endpoint do
               )
             )
 
-            {:ok, %{transcription: transcription, sentiment: "Sentiment is positive"}}
+            {:ok,
+             %{
+               transcription: transcription,
+               sentiment: "Sentiment is positive"
+             }, fallbacks}
 
           _ ->
-            {:ok, %{transcription: transcription}}
+            {:ok, %{transcription: transcription}, fallbacks}
         end
 
       {:DOWN, ^ref, :process, ^pid, reason} when reason != :normal ->
@@ -91,7 +112,7 @@ defmodule Giraff.Endpoint do
         Process.demonitor(ref, [:flush])
         await_end_process_speech(caller, new_pid)
     after
-      300_000 ->
+      timeout ->
         Logger.error("Timeout waiting for transcription and sentiment")
 
         Tracer.set_status(
@@ -115,6 +136,8 @@ defmodule Giraff.Endpoint do
       fallback_function: fn ->
         {:ok, sentiment} =
           Giraff.SentimentAnalysis.degraded_sentiment_analysis(transcription)
+
+        send(parent, {parent, :invoked_fallback})
 
         send(parent, {parent, transcription, sentiment})
       end

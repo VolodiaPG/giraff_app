@@ -23,8 +23,9 @@ defmodule GiraffWeb.Endpoint do
     Giraff.Cost.on_new_request_start({:global, :cost_server})
 
     case Giraff.Endpoint.endpoint(audio_data) do
-      {:ok, result} ->
-        Giraff.Cost.on_new_request_end_success({:global, :cost_server})
+      {:ok, result, fallbacks} ->
+        Logger.info("Request processed, with #{fallbacks} fallbacks")
+        Giraff.Cost.on_new_request_end_success({:global, :cost_server}, fallbacks)
 
         conn
         |> put_resp_content_type("application/json")

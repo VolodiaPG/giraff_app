@@ -202,7 +202,7 @@ defmodule FLAME.DockerBackend do
                 HostConfig: %{
                   NetworkMode: "host",
                   Memory: state.memory_mb * 1024 * 1024,
-                  CpuShares: state.millicpu,
+                  NanoCPUs: state.millicpu * 1_000_000,
                   Binds: [
                     "/var/run/docker.sock:/var/run/docker.sock"
                   ]

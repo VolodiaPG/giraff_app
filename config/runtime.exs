@@ -54,8 +54,8 @@ backend_configs = %{
     name: :flame_end_game,
     module: Giraff.EndGameBackend,
     image: "#{docker_registry}/giraff:giraff_app",
-    millicpu: 100,
-    memory_mb: 128,
+    millicpu: 200,
+    memory_mb: 256,
     min: 0,
     max_concurrency: 50,
     latency_max_ms: 1_000
@@ -68,7 +68,8 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 120 # 15 ms latency in the link, one way
+    # 15 ms latency in the link, one way
+    latency_max_ms: 120
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
@@ -78,7 +79,8 @@ backend_configs = %{
     memory_mb: 1500,
     min: 0,
     max_concurrency: 5,
-    latency_max_ms: 300 # 20 ms latency in the link, one way
+    # 20 ms latency in the link, one way
+    latency_max_ms: 300
   },
   sentiment_backend: %{
     name: :flame_sentiment,
