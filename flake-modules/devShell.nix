@@ -33,9 +33,8 @@
             elixir-ls
             # Required at runtime
             ffmpeg-headless
-            # mimic
           ]
-          ++ lib.optional stdenv.isLinux [inotify-tools libcgroup]
+          ++ lib.optional stdenv.isLinux [inotify-tools libcgroup mimic]
           ++ (
             lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
               CoreFoundation

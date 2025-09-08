@@ -21,8 +21,6 @@ defmodule TextToSpeechTest do
   test "text to speech with AI.TextToSpeech" do
     text = "Hello, this is a test"
     result = Giraff.TextToSpeech.text_to_speech(text)
-    Logger.debug("result: #{inspect(result)}")
-
     assert {:ok, <<82, 73, 70, 70, 164, _::binary>>} = result
   end
 
