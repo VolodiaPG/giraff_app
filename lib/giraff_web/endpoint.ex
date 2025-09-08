@@ -37,6 +37,10 @@ defmodule GiraffWeb.Endpoint do
       {:error, reason} ->
         Logger.error("Request processing error: #{inspect(reason)}")
 
+        Tracer.set_status(
+          OpenTelemetry.status(:error, "Request processing error: #{inspect(reason)}")
+        )
+
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(
@@ -67,6 +71,13 @@ defmodule GiraffWeb.Endpoint do
                 process_speech(conn, data)
 
               params ->
+                Tracer.set_status(
+                  OpenTelemetry.status(
+                    :error,
+                    "Request processing error, invalid params: #{inspect(params)}"
+                  )
+                )
+
                 Logger.warning("Invalid params received: #{inspect(params)}")
                 Tracer.add_event("invalid_params_received", %{params: inspect(params)})
 

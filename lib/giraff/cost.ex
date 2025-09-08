@@ -52,7 +52,7 @@ defmodule Giraff.Cost do
       Application.fetch_env!(:giraff, :new_budget_per_request) / :math.pow(2, fallbacks)
 
     Logger.info(
-      "Got new request end (succes), adding #{inspect(budget_increment)} to budget, because of #{fallbacks} fallbacks"
+      "[request_end] Got new request end (succes), adding #{inspect(budget_increment)} to budget, because of #{fallbacks} fallbacks"
     )
 
     new_budget = state.budget + budget_increment

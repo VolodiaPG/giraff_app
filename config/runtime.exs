@@ -57,7 +57,7 @@ backend_configs = %{
     millicpu: 200,
     memory_mb: 256,
     min: 0,
-    max_concurrency: 50,
+    max_concurrency: 20,
     latency_max_ms: 1_000
   },
   speech_to_text_backend: %{
@@ -276,3 +276,7 @@ end
 config :giraff,
        :new_budget_per_request,
        String.to_integer(System.get_env("NEW_BUDGET_PER_REQUEST", "100"))
+
+config :giraff,
+       :initial_budget,
+       String.to_integer(System.get_env("INITIAL_BUDGET", "100"))

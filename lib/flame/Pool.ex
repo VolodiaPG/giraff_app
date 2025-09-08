@@ -13,8 +13,8 @@ defmodule FLAMERetry do
   require OpenTelemetry.Ctx, as: Ctx
 
   @retries 2
-  @base_delay 50
-  @exponential_factor 2
+  @base_delay 500
+  @exponential_factor 3
   @timeout :timer.seconds(10)
   # @valid_opts [
   #   :retries,
@@ -97,7 +97,10 @@ defmodule FLAMERetry do
 
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-    Logger.debug("casting to pool #{inspect(pool)} with func #{inspect(func)} and opts #{inspect(opts)}")
+    Logger.debug(
+      "casting to pool #{inspect(pool)} with func #{inspect(func)} and opts #{inspect(opts)}"
+    )
+
     state = get_opts!(opts)
     state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
     parent = self()
@@ -232,11 +235,9 @@ defmodule FLAMERetry do
         )
 
       _, err = %FLAME.Pool.Error{} ->
-        Logger.warning("Retry attempt failed, #{retries} attempts remaining")
-
-        # Logger.warning("#{inspect(err)} Retry attempt failed, #{retries} attempts remaining,
-        #       trying after #{delay} ms.
-        #       Error: #{inspect(err)} in #{inspect(__STACKTRACE__)}")
+        Logger.warning("#{inspect(err)} Retry attempt failed, #{retries} attempts remaining,
+              trying after #{delay} ms.
+              Error: #{inspect(err)} in #{inspect(__STACKTRACE__)}")
 
         Process.sleep(delay)
 
