@@ -209,9 +209,7 @@ defmodule FLAMERetry do
     Tracer.set_attribute("retries_left", retries)
 
     try do
-      res = func.()
-      Logger.error("res: #{inspect(res)}")
-      res
+      func.()
     catch
       _, %FLAME.Pool.Error{reason: {{:error, {:cost, :degraded}}, _}} ->
         Logger.warning("Cost module instructed to degrade")
