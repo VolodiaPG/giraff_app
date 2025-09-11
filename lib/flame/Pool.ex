@@ -12,19 +12,22 @@ defmodule FLAMERetry do
   require OpenTelemetry.Tracer, as: Tracer
   require OpenTelemetry.Ctx, as: Ctx
 
-  @retries 2
-  @base_delay 500
-  @exponential_factor 3
+  @retries 1
+  @base_delay 1000
+  @exponential_factor 2
   @timeout :timer.seconds(10)
-  # @valid_opts [
-  #   :retries,
-  #   :base_delay,
-  #   :exponential_factor,
-  #   :fallback_function,
-  #   :caller_pid,
-  #   :timeout,
-  #   :otel_span
-  # ]
+  @valid_opts [
+    :retries,
+    :base_delay,
+    :exponential_factor,
+    :fallback_function,
+    :caller_pid,
+    :timeout,
+    :otel_span,
+    :after_callback,
+    :parent_span_ctx,
+    :link
+  ]
 
   defstruct parent_span_ctx: nil,
             span_ctx: nil,
@@ -97,10 +100,6 @@ defmodule FLAMERetry do
 
   @spec cast(atom(), (-> any()), keyword()) :: :ok
   def cast(pool, func, opts \\ []) when is_atom(pool) and is_function(func) do
-    Logger.debug(
-      "casting to pool #{inspect(pool)} with func #{inspect(func)} and opts #{inspect(opts)}"
-    )
-
     state = get_opts!(opts)
     state = %{state | span_ctx: Tracer.start_span("FLAME.Pool.cast (#{inspect(pool)})...")}
     parent = self()
@@ -108,6 +107,7 @@ defmodule FLAMERetry do
     pid =
       Process.spawn(
         fn ->
+          theprocess = self()
           Tracer.set_current_span(state.span_ctx)
           Logger.metadata(span_ctx: state.span_ctx)
 
@@ -117,13 +117,18 @@ defmodule FLAMERetry do
 
               Tracer.with_span "...FLAME.Pool.cast (#{inspect(pool)})" do
                 Logger.metadata(span_ctx: Tracer.current_span_ctx())
+
+                Logger.debug("FLAME.Pool.cast (#{inspect(pool)}) calling #{inspect(func)}")
+
                 func.()
               end
             end
 
           func = fn ->
-            FLAME.Pool.call(pool, func, opts)
+            opts = Keyword.put_new(opts, :caller_pid, theprocess)
+            res = FLAME.Pool.call(pool, func, opts)
             Tracer.end_span(state.span_ctx)
+            res
           end
 
           case res =
@@ -132,11 +137,15 @@ defmodule FLAMERetry do
                    state
                  ) do
             {:ok, new_pid} when is_pid(new_pid) ->
-              Logger.debug("Successfully spawned a new pid: #{inspect(new_pid)}")
+              Logger.debug(
+                "Successfully spawned a new pid for a new function: #{inspect(new_pid)}"
+              )
+
               send(parent, {:ok_finished_spawned_pid, self(), new_pid})
               res
 
             _ ->
+              Logger.debug("no new pid of next function: #{inspect(res)}")
               res
           end
         end,
@@ -155,12 +164,15 @@ defmodule FLAMERetry do
     opts = Keyword.put_new(opts, :link, true)
     opts = Keyword.put_new(opts, :parent_span_ctx, Tracer.current_span_ctx())
 
+    opts
+    |> Keyword.validate!(@valid_opts)
+
     struct(__MODULE__, opts)
   end
 
   defp exponential_retry!(func, state) do
     if Application.get_env(:giraff, :always_fallback) do
-      Logger.warn("Always fallback mode enabled, running fallback")
+      Logger.warning("Always fallback mode enabled, running fallback")
       do_retry(func, 0, 0, state)
     else
       # Increase by 1 to account for the initial call
@@ -174,17 +186,16 @@ defmodule FLAMERetry do
 
     case state.fallback_function do
       nil ->
-        try do
-          func.()
-        catch
-          _ ->
-            Logger.error(
-              "Fallback function is nil, ran function after already #{state.retries} retries (the max), and failed"
-            )
+        Logger.error(
+          "Fallback function is nil, ran function after already #{state.retries} retries (the max), and failed"
+        )
 
-            Process.exit(self(), {:error, {:failed_to_run_function, "Function was
-      configured to fail after #{state.retries} retries"}})
-        end
+        Process.exit(
+          self(),
+          {:error,
+           {:failed_to_run_function,
+            "Function (#{inspect(func)}) was configured to fail after #{state.retries} retries, no fallback available (#{inspect(state)}"}}
+        )
 
       fallback when is_function(fallback, 0) ->
         fallback.()
@@ -198,7 +209,9 @@ defmodule FLAMERetry do
     Tracer.set_attribute("retries_left", retries)
 
     try do
-      func.()
+      res = func.()
+      Logger.error("res: #{inspect(res)}")
+      res
     catch
       _, %FLAME.Pool.Error{reason: {{:error, {:cost, :degraded}}, _}} ->
         Logger.warning("Cost module instructed to degrade")

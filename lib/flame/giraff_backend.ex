@@ -242,6 +242,7 @@ defmodule FLAME.GiraffBackend do
           }
 
           Tracer.set_attribute("sla", Jason.encode!(sla))
+          Logger.debug("SLA: #{inspect(sla)}")
 
           res =
             Req.put!(

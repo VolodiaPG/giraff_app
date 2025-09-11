@@ -81,7 +81,7 @@ defmodule Giraff.Endpoint do
         apply(
           @flame,
           :cast,
-          Giraff.EndGame.remote_handle_end_game_spec(transcription, caller_pid: caller)
+          Giraff.EndGame.remote_handle_end_game_spec(transcription, [])
         )
 
         case sentiment do
@@ -89,8 +89,9 @@ defmodule Giraff.Endpoint do
             apply(
               @flame,
               :cast,
-              Giraff.TextToSpeech.remote_text_to_speech_spec(transcription,
-                caller_pid: caller
+              Giraff.TextToSpeech.remote_text_to_speech_spec(
+                transcription,
+                []
               )
             )
 
@@ -110,6 +111,7 @@ defmodule Giraff.Endpoint do
 
       {:ok_finished_spawned_pid, ^pid, new_pid} ->
         Process.demonitor(ref, [:flush])
+        Logger.debug("Got new pid: #{inspect(new_pid)}")
         await_end_process_speech(caller, new_pid)
     after
       timeout ->
@@ -119,8 +121,7 @@ defmodule Giraff.Endpoint do
           OpenTelemetry.status(:error, "Timeout waiting for transcription and sentiment")
         )
 
-        {:error, {:timeout, "Timeout waiting for
-              transcription and sentiment"}}
+        {:error, {:timeout, "Timeout waiting for transcription and sentiment"}}
     end
   end
 

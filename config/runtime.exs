@@ -78,9 +78,9 @@ backend_configs = %{
     millicpu: 500,
     memory_mb: 1500,
     min: 0,
-    max_concurrency: 5,
-    # 20 ms latency in the link, one way
-    latency_max_ms: 300
+    max_concurrency: 8,
+    # > 20 ms latency in the link, one way
+    latency_max_ms: 500
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -100,13 +100,13 @@ backend_configs = %{
     memory_mb: 512,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 200
+    latency_max_ms: 300
   }
 }
 
 # Common pool settings
 common_pool_settings = [
-  max: 100,
+  max: 10000,
   boot_timeout: :timer.minutes(2),
   shutdown_timeout: :timer.minutes(2),
   idle_shutdown_after: :infinity,

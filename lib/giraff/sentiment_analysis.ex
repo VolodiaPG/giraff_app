@@ -11,9 +11,12 @@ defmodule Giraff.SentimentAnalysis do
            AI.SentimentRecognition.analyze_text(text) do
       Logger.debug("Sentiment analysis result: #{inspect(sentiment)}")
       Tracer.add_event("sentiment_analyzed", %{sentiment: inspect(sentiment)})
-      if after_callback, do: after_callback.(sentiment)
 
-      sentiment
+      if after_callback do
+        after_callback.(sentiment)
+      else
+        sentiment
+      end
     else
       error ->
         Tracer.add_event("sentiment_analysis.error", %{reason: error})
@@ -54,8 +57,10 @@ defmodule Giraff.SentimentAnalysis do
     res =
       {:ok, %{label: "NEG"}}
 
-    if after_callback, do: after_callback.(res)
-
-    res
+    if after_callback do
+      after_callback.(res)
+    else
+      res
+    end
   end
 end

@@ -18,8 +18,11 @@ defmodule Giraff.VoskSpeechToText do
       res =
         {:ok, transcription}
 
-      if after_callback, do: after_callback.(res)
-      res
+      if after_callback do
+        after_callback.(res)
+      else
+        res
+      end
     else
       {:error, reason} ->
         Logger.error("Vosk speech recognition failed: #{inspect(reason)}")
@@ -33,7 +36,7 @@ defmodule Giraff.VoskSpeechToText do
   """
   def remote_speech_to_text_spec(audio, opts) when is_binary(audio) do
     opts = Keyword.put_new(opts, :retries, 3)
-    opts = Keyword.put_new(opts, :base_delay, 1000)
+    opts = Keyword.put_new(opts, :base_delay, 2000)
 
     [
       Giraff.VoskSpeechToTextBackend,
