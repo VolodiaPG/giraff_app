@@ -33,7 +33,8 @@ defmodule FailTestBackend do
   def spec(state) do
     counter =
       start_supervised!(
-        {FLAME.FailBackend.Counter, initial_value: 0, name: :"#{state.name}.Counter"},
+        {FLAME.FailBackend.Counter,
+         initial_value: state.fail_after, name: :"#{state.name}.Counter"},
         id: :"#{state.name}.Counter"
       )
 
@@ -76,7 +77,6 @@ defmodule EndpoindTest do
         backends =
           backends
           |> Enum.map(fn backend ->
-
             case backend do
               %TestBackend{} ->
                 start_supervised!(TestBackend.spec(backend))
@@ -95,6 +95,7 @@ defmodule EndpoindTest do
       end
 
     for backend <- backends_to_start do
+      Logger.debug("Starting backend #{inspect(backend)}")
       start_supervised!(TestBackend.spec(%TestBackend{name: backend}))
     end
 
@@ -139,17 +140,16 @@ defmodule EndpoindTest do
   end
 
   test "nominal", %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: " I'm going to be the most wonderful.",
-                sentiment: "Sentiment is positive"
-              }, 0}
-
-    # end)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: " I'm going to be the most wonderful.",
+                  sentiment: "Sentiment is positive"
+                }, 0}
+    end)
   end
 
   @tag backends: [
@@ -158,17 +158,16 @@ defmodule EndpoindTest do
          }
        ]
   test "fail SpeechToTextBackend", %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: "that's wonderful",
-                sentiment: "Sentiment is positive"
-              }, 1}
-
-    # end)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: "that's wonderful",
+                  sentiment: "Sentiment is positive"
+                }, 1}
+    end)
   end
 
   @tag backends: [
@@ -178,49 +177,50 @@ defmodule EndpoindTest do
          }
        ]
   test "fail SpeechToTextBackend, after a success, and unfail once again after", %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: " I'm going to be the most wonderful.",
-                sentiment: "Sentiment is positive"
-              }, 0}
+      assert res ==
+               {:ok,
+                %{
+                  transcription: " I'm going to be the most wonderful.",
+                  sentiment: "Sentiment is positive"
+                }, 0}
 
-    Process.spawn(
-      fn ->
-        toto = Giraff.Endpoint.endpoint(data)
+      Process.spawn(
+        fn ->
+          toto = Giraff.Endpoint.endpoint(data)
 
-        assert toto ==
-                 {:ok,
-                  %{
-                    transcription: " I'm going to be the most wonderful.",
-                    sentiment: "Sentiment is positive"
-                  }, 0}
-      end,
-      []
-    )
+          assert toto ==
+                   {:ok,
+                    %{
+                      transcription: " I'm going to be the most wonderful.",
+                      sentiment: "Sentiment is positive"
+                    }, 0}
+        end,
+        []
+      )
 
-    res = Giraff.Endpoint.endpoint(data)
+      Process.sleep(100)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: "that's wonderful",
-                sentiment: "Sentiment is positive"
-              }, 1}
+      res = Giraff.Endpoint.endpoint(data)
 
-    res = Giraff.Endpoint.endpoint(data)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: "that's wonderful",
+                  sentiment: "Sentiment is positive"
+                }, 1}
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: " I'm going to be the most wonderful.",
-                sentiment: "Sentiment is positive"
-              }, 0}
+      res = Giraff.Endpoint.endpoint(data)
 
-    # end)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: " I'm going to be the most wonderful.",
+                  sentiment: "Sentiment is positive"
+                }, 0}
+    end)
   end
 
   @tag backends: [
@@ -230,45 +230,42 @@ defmodule EndpoindTest do
          },
          %FailTestBackend{
            name: Giraff.SentimentBackend,
-           fail_after: 1
+           fail_after: 0
          }
        ]
   test "fail SpeechToTextBackend, and SentimentAnalysis, coordinated", %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    Process.spawn(
-      fn ->
-        res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      Process.spawn(
+        fn ->
+          res = Giraff.Endpoint.endpoint(data)
 
-        assert res ==
-                 {:ok,
-                  %{
-                    transcription: " I'm going to be the most wonderful.",
-                    sentiment: "Sentiment is positive"
-                  }, 0}
-      end,
-      []
-    )
+          assert res ==
+                   {:ok,
+                    %{
+                      transcription: " I'm going to be the most wonderful."
+                    }, 1}
+        end,
+        []
+      )
 
-    Process.sleep(100)
+      Process.sleep(100)
 
-    res = Giraff.Endpoint.endpoint(data)
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: "that's wonderful"
-              }, 2}
+      assert res ==
+               {:ok,
+                %{
+                  transcription: "that's wonderful"
+                }, 2}
 
-    res = Giraff.Endpoint.endpoint(data)
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: " I'm going to be the most wonderful.",
-                sentiment: "Sentiment is positive"
-              }, 0}
-
-    # end)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: " I'm going to be the most wonderful."
+                }, 1}
+    end)
   end
 
   @tag backends: [
@@ -280,11 +277,11 @@ defmodule EndpoindTest do
          }
        ]
   test "fail SpeechToTextBackend, and VoskSpeechToTextBackend", %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert {:error, {:process_exited, {:error, {:failed_to_run_function, _}}}} = res
-    # end)
+      assert {:error, {:process_exited, {:error, {:failed_to_run_function, _}}}} = res
+    end)
   end
 
   @tag backends: [
@@ -359,15 +356,14 @@ defmodule EndpoindTest do
        ]
   test "fail EndGameBackend, and SpeechToTextBackend, and SentimentBackend",
        %{data: data} do
-    # ExUnit.CaptureLog.capture_log(fn ->
-    res = Giraff.Endpoint.endpoint(data)
+    ExUnit.CaptureLog.capture_log(fn ->
+      res = Giraff.Endpoint.endpoint(data)
 
-    assert res ==
-             {:ok,
-              %{
-                transcription: "that's wonderful"
-              }, 2}
-
-    # end)
+      assert res ==
+               {:ok,
+                %{
+                  transcription: "that's wonderful"
+                }, 2}
+    end)
   end
 end

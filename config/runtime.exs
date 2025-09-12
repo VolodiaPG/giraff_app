@@ -65,7 +65,7 @@ backend_configs = %{
     module: Giraff.SpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_speech",
     millicpu: 2000,
-    memory_mb: 1500,
+    memory_mb: 2000,
     min: 0,
     max_concurrency: 4,
     # 15 ms latency in the link, one way
@@ -78,7 +78,7 @@ backend_configs = %{
     millicpu: 500,
     memory_mb: 1500,
     min: 0,
-    max_concurrency: 8,
+    max_concurrency: 4,
     # > 20 ms latency in the link, one way
     latency_max_ms: 500
   },

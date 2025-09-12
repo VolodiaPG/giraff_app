@@ -58,9 +58,11 @@ end
 
 defmodule FLAME.FailBackend.Counter do
   use GenServer
+  require Logger
 
   def start_link(opts) do
     opts = Keyword.put_new(opts, :name, __MODULE__)
+    Logger.debug("Starting fail counter with opts: #{inspect(opts)}")
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name))
   end
 

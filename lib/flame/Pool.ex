@@ -13,7 +13,7 @@ defmodule FLAMERetry do
   require OpenTelemetry.Ctx, as: Ctx
 
   @retries 1
-  @base_delay 1000
+  @base_delay 500
   @exponential_factor 2
   @timeout :timer.seconds(10)
   @valid_opts [

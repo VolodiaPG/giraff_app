@@ -37,6 +37,7 @@ defmodule Giraff.VoskSpeechToText do
   def remote_speech_to_text_spec(audio, opts) when is_binary(audio) do
     opts = Keyword.put_new(opts, :retries, 3)
     opts = Keyword.put_new(opts, :base_delay, 2000)
+    opts = Keyword.put_new(opts, :exponential_factor, 3)
 
     [
       Giraff.VoskSpeechToTextBackend,

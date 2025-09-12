@@ -35,7 +35,7 @@ defmodule Giraff.TextToSpeech do
   def remote_text_to_speech_spec(text, opts) when is_binary(text) do
     opts = Keyword.put_new(opts, :retries, 2)
     opts = Keyword.put_new(opts, :base_delay, 500)
-    opts = Keyword.put_new(opts, :exponential_factor, 2)
+    opts = Keyword.put_new(opts, :exponential_factor, 4)
 
     [
       Giraff.TextToSpeechBackend,
