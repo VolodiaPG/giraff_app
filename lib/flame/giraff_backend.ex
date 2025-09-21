@@ -95,7 +95,7 @@ defmodule FLAME.GiraffBackend do
     default = %GiraffBackend{
       memory_mb: 256,
       millicpu: 1000,
-      boot_timeout: 30_000,
+      boot_timeout: 60_000,
       max_replica: 1,
       input_max_size_b: 1,
       duration: 120_000,
@@ -131,7 +131,8 @@ defmodule FLAME.GiraffBackend do
     Logger.debug("Flame parent: #{encoded_parent}")
 
     new_env =
-      %{
+      state.env
+      |> Map.merge(%{
         "SECRET_KEY_BASE" => Application.get_env(:giraff, :secret_key_base),
         "OTEL_NAMESPACE" => Application.get_env(:flame, :otel_namespace),
         "FLAME_PARENT" => encoded_parent,
@@ -139,8 +140,7 @@ defmodule FLAME.GiraffBackend do
         "RELEASE_COOKIE" => Node.get_cookie(),
         "MIX_ENV" => Application.get_env(:giraff, Giraff.Application)[:env],
         "DOCKER_REGISTRY" => Application.get_env(:giraff, :docker_registry)
-      }
-      |> Map.merge(state.env)
+      })
       |> then(fn env ->
         if flags = System.get_env("ERL_AFLAGS") do
           Map.put_new(env, "ERL_AFLAGS", flags)

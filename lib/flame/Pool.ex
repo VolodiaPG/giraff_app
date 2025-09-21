@@ -15,7 +15,7 @@ defmodule FLAMERetry do
   @retries 1
   @base_delay 500
   @exponential_factor 2
-  @timeout :timer.seconds(10)
+  @timeout :timer.seconds(30)
   @valid_opts [
     :retries,
     :base_delay,
@@ -171,6 +171,14 @@ defmodule FLAMERetry do
   end
 
   defp exponential_retry!(func, state) do
+    state =
+      if Application.get_env(:giraff, :no_fallbacks) do
+        Logger.warning("No fallbacks mode enabled")
+        %{state | fallback_function: nil}
+      else
+        state
+      end
+
     if Application.get_env(:giraff, :always_fallback) do
       Logger.warning("Always fallback mode enabled, running fallback")
       do_retry(func, 0, 0, state)

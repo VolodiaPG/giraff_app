@@ -99,7 +99,8 @@ defmodule FLAME.DockerBackend do
       |> FLAME.Parent.encode()
 
     new_env =
-      %{
+      state.env
+      |> Map.merge(%{
         "SECRET_KEY_BASE" => System.get_env("SECRET_KEY_BASE"),
         "OTEL_NAMESPACE" => Application.get_env(:flame, :otel_namespace),
         "OTEL_EXPORTER_OTLP_ENDPOINT_FUNCTION" => Application.get_env(:giraff, :otel_endpoint),
@@ -107,8 +108,7 @@ defmodule FLAME.DockerBackend do
         "RELEASE_COOKIE" => Node.get_cookie(),
         "NAME" => state.livename,
         "MIX_ENV" => Application.get_env(:giraff, Giraff.Application)[:env]
-      }
-      |> Map.merge(state.env)
+      })
       |> then(fn env ->
         if flags = System.get_env("ERL_AFLAGS") do
           Map.put_new(env, "ERL_AFLAGS", flags)

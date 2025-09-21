@@ -78,22 +78,32 @@ defmodule Giraff.Endpoint do
         Process.demonitor(ref, [:flush])
         Logger.debug("Got transcription and sentiment: #{transcription}, #{inspect(sentiment)}")
 
-        apply(
-          @flame,
-          :cast,
-          Giraff.EndGame.remote_handle_end_game_spec(transcription, [])
-        )
+        try do
+          apply(
+            @flame,
+            :cast,
+            Giraff.EndGame.remote_handle_end_game_spec(transcription, link: false)
+          )
+        rescue
+          e in RuntimeError ->
+            Logger.error("Error handling end game: #{inspect(e)}")
+        end
 
         case sentiment do
           %{label: "POS"} ->
-            apply(
-              @flame,
-              :cast,
-              Giraff.TextToSpeech.remote_text_to_speech_spec(
-                transcription,
-                []
+            try do
+              apply(
+                @flame,
+                :cast,
+                Giraff.TextToSpeech.remote_text_to_speech_spec(
+                  transcription,
+                  link: false
+                )
               )
-            )
+            rescue
+              e in RuntimeError ->
+                Logger.error("Error handling text to speech: #{inspect(e)}")
+            end
 
             {:ok,
              %{

@@ -29,7 +29,6 @@ config :giraff, otel_endpoint: otel_endpoint
 
 name = System.get_env("ID") || System.get_env("NAME") || "giraff_application"
 namespace = System.get_env("OTEL_NAMESPACE") || name
-
 config :flame, otel_namespace: namespace
 
 config :opentelemetry, :resource,
@@ -69,18 +68,18 @@ backend_configs = %{
     min: 0,
     max_concurrency: 4,
     # 15 ms latency in the link, one way
-    latency_max_ms: 120
+    latency_max_ms: 150
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
     module: Giraff.VoskSpeechToTextBackend,
     image: "#{docker_registry}/giraff:giraff_vosk_speech",
-    millicpu: 500,
+    millicpu: 1000,
     memory_mb: 1500,
     min: 0,
     max_concurrency: 4,
     # > 20 ms latency in the link, one way
-    latency_max_ms: 500
+    latency_max_ms: 300
   },
   sentiment_backend: %{
     name: :flame_sentiment,
@@ -90,17 +89,40 @@ backend_configs = %{
     memory_mb: 2048,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 120
+    latency_max_ms: 150
   },
   text_to_speech_backend: %{
     name: :flame_text_to_speech,
     module: Giraff.TextToSpeechBackend,
     image: "#{docker_registry}/giraff:giraff_tts",
-    millicpu: 256,
+    millicpu: 500,
     memory_mb: 512,
     min: 0,
     max_concurrency: 4,
     latency_max_ms: 300
+  }
+}
+
+new_budget_per_request = System.get_env("NEW_BUDGET_PER_REQUEST", "10")
+
+config :giraff,
+       :new_budget_per_request,
+       String.to_integer(new_budget_per_request)
+
+initial_budget = System.get_env("INITIAL_BUDGET", "0")
+
+config :giraff,
+       :initial_budget,
+       String.to_integer(initial_budget)
+
+no_fallbacks = System.get_env("NO_FALLBACKS", "false")
+config :giraff, no_fallbacks: no_fallbacks == "true"
+
+common_backend_settings = %{
+  env: %{
+    "NEW_BUDGET_PER_REQUEST" => new_budget_per_request,
+    "INITIAL_BUDGET" => initial_budget,
+    "NO_FALLBACKS" => no_fallbacks
   }
 }
 
@@ -191,6 +213,7 @@ case config_env() do
     config :flame, :backend, FLAME.GiraffBackend
 
     for {backend_type, config} <- backend_configs do
+      config = Map.merge(config, common_backend_settings)
       config_key = :"#{backend_type}"
 
       backend_config = {
@@ -204,7 +227,8 @@ case config_env() do
         memory_mb: config.memory_mb,
         latency_max_ms: config.latency_max_ms,
         target_entrypoint: System.get_env("GIRAFF_NODE_ID"),
-        from: System.get_env("GIRAFF_NODE_ID")
+        from: System.get_env("GIRAFF_NODE_ID"),
+        env: config.env
       }
 
       pool_config =
@@ -223,6 +247,7 @@ case config_env() do
     config :flame, :backend, FLAME.DockerBackend
 
     for {backend_type, config} <- backend_configs do
+      config = Map.merge(config, common_backend_settings)
       config_key = :"#{backend_type}"
 
       backend_config = {
@@ -232,7 +257,8 @@ case config_env() do
         boot_timeout: 120_000,
         image: config.image,
         millicpu: config.millicpu,
-        memory_mb: config.memory_mb
+        memory_mb: config.memory_mb,
+        env: config.env
       }
 
       pool_config =
@@ -250,6 +276,7 @@ case config_env() do
     config :flame, :backend, FLAME.CostTestBackend
 
     for {backend_type, config} <- backend_configs do
+      config = Map.merge(config, common_backend_settings)
       config_key = :"#{backend_type}"
 
       pool_config =
@@ -272,11 +299,3 @@ case config_env() do
       config :giraff, config_key, nil
     end
 end
-
-config :giraff,
-       :new_budget_per_request,
-       String.to_integer(System.get_env("NEW_BUDGET_PER_REQUEST", "100"))
-
-config :giraff,
-       :initial_budget,
-       String.to_integer(System.get_env("INITIAL_BUDGET", "100"))
