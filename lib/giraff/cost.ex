@@ -25,7 +25,7 @@ defmodule Giraff.Cost do
   @impl true
   def init(args) do
     cost_init = %Cost{
-      budget: Application.fetch_env!(:giraff, :new_budget_per_request)
+      budget: Application.fetch_env!(:giraff, :initial_budget)
     }
 
     state = Map.merge(cost_init, Map.new(args))
