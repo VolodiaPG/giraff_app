@@ -45,6 +45,7 @@ config :opentelemetry, :processors,
 
 config :opentelemetry_exporter,
   otlp_protocol: :grpc,
+  otlp_compression: :gzip,
   otlp_endpoint: otel_endpoint
 
 # Define common pool configurations for each backend type
