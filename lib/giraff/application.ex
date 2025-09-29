@@ -60,7 +60,7 @@ defmodule Giraff.Application do
         flame_vosk_speech_to_text: :poolboy.child_spec(:worker, vosk_poolboy_config()),
         flame_speech_to_text: AI.SpeechRecognitionServer,
         flame_sentiment: AI.SentimentServer,
-        parent: {Giraff.Cost, [name: {:global, :cost_server}, nb_requests_to_wait: 2]}
+        parent: {Giraff.Cost, [name: {:global, :cost_server}, nb_requests_to_wait: 4]}
         #         parent: text_to_speech_backend,
         #         parent: vosk_speech_to_text_backend,
         #         parent: sentiment_backend,

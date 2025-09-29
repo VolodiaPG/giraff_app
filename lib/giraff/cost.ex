@@ -103,9 +103,9 @@ defmodule Giraff.Cost do
           #   {:reply, :wait, state}
 
           cost <= state.budget ->
-            new_budget = state.budget - cost
+            # new_budget = state.budget - cost
             Logger.debug("Choosing to scale out")
-            {:reply, :scaling, %{state | budget: new_budget}}
+            {:reply, :scaling}
 
           cost > state.budget ->
             Logger.debug("Choosing to degrade")
