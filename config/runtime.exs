@@ -1,5 +1,7 @@
 import Config
 
+config :logger, level: :info
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -69,7 +71,7 @@ backend_configs = %{
     min: 0,
     max_concurrency: 4,
     # 15 ms latency in the link, one way
-    latency_max_ms: 150
+    latency_max_ms: 75
   },
   vosk_speech_to_text_backend: %{
     name: :flame_vosk_speech_to_text,
@@ -100,7 +102,7 @@ backend_configs = %{
     memory_mb: 512,
     min: 0,
     max_concurrency: 4,
-    latency_max_ms: 300
+    latency_max_ms: 200
   }
 }
 

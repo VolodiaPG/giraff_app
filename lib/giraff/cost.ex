@@ -47,9 +47,12 @@ defmodule Giraff.Cost do
     {:reply, :ok, new_state}
   end
 
-  def handle_call({:new_request_end_success, fallbacks}, _from, state) do
+  def handle_call({:new_request_end_success, fallbacks, span_ctx}, _from, state) do
+    # / :math.pow(2, fallbacks)
     budget_increment =
-      Application.fetch_env!(:giraff, :new_budget_per_request) / :math.pow(2, fallbacks)
+      Application.fetch_env!(:giraff, :new_budget_per_request)
+
+    Tracer.set_current_span(span_ctx)
 
     Logger.info(
       "[request_end] Got new request end (succes), adding #{inspect(budget_increment)} to budget, because of #{fallbacks} fallbacks"
@@ -61,6 +64,9 @@ defmodule Giraff.Cost do
       state
       | budget: new_budget
     }
+
+    Tracer.set_attribute("budget_increment", budget_increment)
+    Tracer.set_attribute("new_budget", new_budget)
 
     {:reply, :ok, new_state}
   end
@@ -150,7 +156,8 @@ defmodule Giraff.Cost do
   end
 
   def on_new_request_end_success(cost_pid, fallbacks) do
-    GenServer.call(cost_pid, {:new_request_end_success, fallbacks})
+    span_ctx = Tracer.current_span_ctx()
+    GenServer.call(cost_pid, {:new_request_end_success, fallbacks, span_ctx})
   end
 
   def on_new_request_end(cost_pid) do
